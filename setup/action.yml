@@ -1,0 +1,19 @@
+name: 'Install Module'
+description: 'Install external module'
+runs:
+  using: "composite"
+  steps:
+    - uses: werf/actions/install@v1.2
+    - uses: imjasonh/setup-crane@v0.1
+
+    - run: werf version
+      shell: bash
+      name: Werf version
+      
+    - run: crane version
+      shell: bash
+      name: Crane version
+
+    - run: werf cr login -u ${{ github.actor }} -p ${{ github.token }} ghcr.io
+      shell: bash
+      name: Werf login registry
