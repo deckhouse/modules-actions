@@ -1,0 +1,15 @@
+on: [push]
+
+jobs:
+  auto_setup_build:
+    runs-on: ubuntu-latest
+    env: 
+       CI_COMMIT_REF_NAME: ${{ github.ref_name }}
+       MODULES_MODULE_NAME: ${{ vars.MODULE_NAME }}
+       MODULES_MODULE_SOURCE: ${{ vars.MODULE_SOURCE }}
+       MODULES_MODULE_TAG: ${{ github.ref_name }}
+    name: Build and Push images
+    steps:
+      - uses: actions/checkout@v4
+      - uses: deckhouse/modules-actions/setup@v1
+      - uses: deckhouse/modules-actions/build@v1
