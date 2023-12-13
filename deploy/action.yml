@@ -1,5 +1,5 @@
 name: 'Deploy Module'
-description: 'Deploy external module'
+description: 'Deploy Deckhouse module'
 runs:
   using: "composite"
   steps:
