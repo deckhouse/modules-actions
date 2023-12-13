@@ -1,0 +1,15 @@
+name: 'Deploy Module'
+description: 'Deploy external module'
+runs:
+  using: "composite"
+  steps:
+      - run: |
+               
+               REPO="${MODULES_MODULE_SOURCE}/${MODULES_MODULE_NAME}/release"
+               IMAGE_SRC="${REPO}:${MODULES_MODULE_TAG}"
+               IMAGE_DST="${REPO}:${RELEASE_CHANNEL}"
+               echo "✨ Deploy : Pushing ${IMAGE_SRC} to ${IMAGE_DST}"
+               crane copy "${IMAGE_SRC}" "${IMAGE_DST}"
+          
+        shell: bash
+        name: Deploy 
