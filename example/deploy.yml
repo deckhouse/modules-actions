@@ -23,6 +23,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     env: 
+       MODULES_REGISTRY: ${{ vars.REGISTRY }}
        CI_COMMIT_REF_NAME: ${{ github.ref_name }}
        MODULES_MODULE_NAME: ${{ vars.MODULE_NAME }}
        MODULES_MODULE_SOURCE: ${{ vars.MODULE_SOURCE }}
