@@ -1,11 +1,11 @@
 name: 'Build Module'
-description: 'Build external module'
+description: 'Build Deckhouse module'
 runs:
   using: "composite"
   steps:
       - run: |
               source "$(werf ci-env github --as-file)"
-              werf build --repo=ghcr.io/${{ github.repository }}/$MODULES_MODULE_NAME --save-build-report --build-report-path images_tags_werf.json
+              werf build --repo=$MODULES_MODULE_SOURCE --save-build-report --build-report-path images_tags_werf.json
               
         shell: bash
         name: Build images
@@ -17,7 +17,7 @@ runs:
               crane copy ${IMAGE_SRC} ${IMAGE_DST}
               
         shell: bash
-        name: Build image
+        name: Bundle image
         
       - run: |
               IMAGE_SRC="$(jq -r '.Images."release-channel-version".DockerImageName' images_tags_werf.json)"
