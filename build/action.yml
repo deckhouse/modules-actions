@@ -5,7 +5,7 @@ runs:
   steps:
       - run: |
               source "$(werf ci-env github --as-file)"
-              werf build --repo=${MODULES_MODULE_SOURCE}/${MODULES_MODULE_NAME}
+              werf build --repo=${MODULES_MODULE_SOURCE}/${MODULES_MODULE_NAME} --save-build-report --build-report-path images_tags_werf.json
               
         shell: bash
         name: Build images
