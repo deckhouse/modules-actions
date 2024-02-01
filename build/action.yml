@@ -1,40 +1,46 @@
-name: 'Build Module'
+name: 'Build Deckhouse Module'
 description: 'Build Deckhouse module'
+inputs:
+  module_source:
+    description: 'Registry repository address for of the module, e.g., registry.example.com/module-source'
+    required: true
+  module_name:
+    description: 'Name of the module, e.g., my-module'
+    required: true
+  module_tag:
+    description: 'The version of the module to deploy to release channel, e.g., v1.21.1'
+    required: true
+
 runs:
   using: "composite"
   steps:
-      - run: |
-              source "$(werf ci-env github --as-file)"
-              werf build --repo=${MODULES_MODULE_SOURCE}/${MODULES_MODULE_NAME} --save-build-report --build-report-path images_tags_werf.json
+    - name: Build dependency images
+      shell: bash
+      run: |
+        source "$(werf ci-env github --as-file)"
+        werf build --repo=${{ inputs.module_source }}/${{ inputs.module_name }} --save-build-report --build-report-path images_tags_werf.json
 
-              
-        shell: bash
-        name: Build images
+    - name: Bundle the module image
+      shell: bash
+      run: |
+        IMAGE_SRC="$(jq -r '.Images."bundle".DockerImageName' images_tags_werf.json)"
+        IMAGE_DST="$(jq -r '.Images.bundle.DockerRepo' images_tags_werf.json):${{ inputs.module_tag }}"
+        echo "✨ Bundle image : Pushing ${IMAGE_SRC} to ${IMAGE_DST}"
+        crane copy ${IMAGE_SRC} ${IMAGE_DST}
 
-      - run: |
-              IMAGE_SRC="$(jq -r '.Images."bundle".DockerImageName' images_tags_werf.json)"
-              IMAGE_DST="$(jq -r '.Images.bundle.DockerRepo' images_tags_werf.json):${MODULES_MODULE_TAG}"
-              echo "✨ Bundle image : Pushing ${IMAGE_SRC} to ${IMAGE_DST}"
-              crane copy ${IMAGE_SRC} ${IMAGE_DST}
-              
-        shell: bash
-        name: Bundle image
-        
-      - run: |
-              IMAGE_SRC="$(jq -r '.Images."release-channel-version".DockerImageName' images_tags_werf.json)"
-              IMAGE_DST="$(jq -r '.Images."release-channel-version".DockerRepo' images_tags_werf.json)/release:${MODULES_MODULE_TAG}"
-              echo "✨ Release-channel image : Pushing ${IMAGE_SRC} to ${IMAGE_DST}"
-              crane copy ${IMAGE_SRC} ${IMAGE_DST}
-              
-        shell: bash
-        name: Release-channel image
+    - name: Prepare the release-channel image
+      shell: bash
+      run: |
+        IMAGE_SRC="$(jq -r '.Images."release-channel-version".DockerImageName' images_tags_werf.json)"
+        IMAGE_DST="$(jq -r '.Images."release-channel-version".DockerRepo' images_tags_werf.json)/release:${{ inputs.module_tag }}"
+        echo "✨ Release-channel image : Pushing ${IMAGE_SRC} to ${IMAGE_DST}"
+        crane copy ${IMAGE_SRC} ${IMAGE_DST}
 
-      - run: |
-              echo "✨ Register the module ${MODULES_MODULE_NAME}"
-              crane append \
-                --oci-empty-base \
-                --new_layer "" \
-                --new_tag "${MODULES_MODULE_SOURCE}:${MODULES_MODULE_NAME}"
-
-        shell: bash
-        name: Module registration
+    - name: Register ${{ inputs.module_name }} module
+      shell: bash
+      run: |
+        echo "✨ Register the module ${{ inputs.module_name }}"
+        crane append \
+          --oci-empty-base \
+          --new_layer "" \
+          --new_tag "${{ inputs.module_source }}/${{ inputs.module_name }}"

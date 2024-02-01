@@ -1,19 +1,30 @@
-name: 'Install Module'
-description: 'Install Deckhouse module'
+name: 'Setup Deckhouse Module Building Environment'
+description: 'Setup Deckhouse Module'
+inputs:
+  registry:
+    description: 'Registry URL'
+    required: true
+  registry_login:
+    description: 'Registry login'
+    required: true
+  registry_password:
+    description: 'Registry password'
+    required: true
+
 runs:
   using: "composite"
   steps:
     - uses: werf/actions/install@v1.2
     - uses: imjasonh/setup-crane@v0.1
 
-    - run: werf version
+    - name: Print werf version
       shell: bash
-      name: Werf version
-      
-    - run: crane version
-      shell: bash
-      name: Crane version
+      run: werf version
 
-    - run: werf cr login -u ${{ secrets.MODULES_REGISTRY_LOGIN}} -p ${{  secrets.MODULES_REGISTRY_PASSWORD }} ${MODULES_REGISTRY}
+    - name: Print crane version
       shell: bash
-      name: Werf login registry
+      run: crane version
+
+    - name: Login into registry ${{ inputs.registry }}
+      shell: bash
+      run: werf cr login -u ${{ inputs.registry_login }} -p ${{ inputs.registry_password }} ${{ inputs.registry }}

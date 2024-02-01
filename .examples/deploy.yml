@@ -1,0 +1,35 @@
+on:
+  workflow_dispatch:
+   inputs:
+      release_channel:
+        description: "Select the release channel"
+        type: choice
+        default: alpha
+        options:
+          - "alpha"
+          - "beta"
+          - "early-access"
+          - "stable"
+          - "rock-solid"
+      tag:
+        description: "Tag of the module, e.g., v1.21.1"
+        type: string
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy the module
+    steps:
+      - uses: actions/checkout@v4
+      - uses: deckhouse/modules-actions/setup@v1
+        with:
+          registry: registry.deckhouse.io
+          registry_login: ${{ secrets.REGISTRY_LOGIN }}
+          registry_password: ${{ secrets.REGISTRY_PASSWORD }}
+      - uses: deckhouse/modules-actions/deploy@v1
+        with:
+          module_source: registry.deckhouse.io/deckhouse/ce/modules
+          module_name: everything-controller
+          module_tag: ${{ github.event.inputs.tag }}
+          release_channel: ${{ github.event.inputs.release_channel }}
