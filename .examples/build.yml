@@ -15,4 +15,4 @@ jobs:
         with:
           module_source: registry.deckhouse.io/deckhouse/ce/modules
           module_name: everything-controller
-          module_tag: v1.0.0
+          module_tag: ${{ github.ref_name }}
