@@ -27,3 +27,12 @@ runs:
               
         shell: bash
         name: Release-channel image
+
+      - run: |
+              echo "✨ Register the module ${MODULES_MODULE_NAME}"
+              crane append \
+                --oci-empty-base \
+                --new_layer "" \
+                --new_tag "${MODULES_MODULE_SOURCE}:${MODULES_MODULE_NAME}"
+        shell: bash
+        name: Module registration
