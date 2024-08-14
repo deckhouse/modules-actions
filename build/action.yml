@@ -43,4 +43,4 @@ runs:
         crane append \
           --oci-empty-base \
           --new_layer "" \
-          --new_tag "${{ inputs.module_source }}/${{ inputs.module_name }}"
+          --new_tag "${{ inputs.module_source }}:${{ inputs.module_name }}"
