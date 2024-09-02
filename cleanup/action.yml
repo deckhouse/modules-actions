@@ -1,0 +1,21 @@
+name: 'Cleanup Deckhouse Module'
+description: 'Cleanup Deckhouse module'
+inputs:
+  module_source:
+    description: 'Registry repository address for of the module, e.g., registry.example.com/module-source'
+    required: true
+  module_name:
+    description: 'Name of the module, e.g., my-module'
+    required: true
+  module_tag:
+    description: 'The version of the module to deploy to release channel, e.g., v1.21.1'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Cleanup images
+      shell: bash
+      run: |
+        source "$(werf ci-env github --as-file)"
+        werf cleanup --repo=${{ inputs.module_source }}/${{ inputs.module_name }} --without-kube=true --config werf_cleanup.yaml

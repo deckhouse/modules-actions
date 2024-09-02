@@ -1,0 +1,18 @@
+on: [push]
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    name: Cleanup images
+    steps:
+      - uses: actions/checkout@v4
+      - uses: deckhouse/modules-actions/setup@v1
+        with:
+          registry: registry.deckhouse.io
+          registry_login: ${{ secrets.REGISTRY_LOGIN }}
+          registry_password: ${{ secrets.REGISTRY_PASSWORD }}
+      - uses: deckhouse/modules-actions/cleanup@v1
+        with:
+          module_source: registry.deckhouse.io/deckhouse/ce/modules
+          module_name: everything-controller
+          module_tag: ${{ github.ref_name }}
