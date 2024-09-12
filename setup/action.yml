@@ -4,7 +4,7 @@ runs:
   using: "composite"
   steps:
     - uses: werf/actions/install@v1.2
-    - uses: imjasonh/setup-crane@v0.1
+    - uses: imjasonh/setup-crane@v0.4
 
     - run: werf version
       shell: bash
