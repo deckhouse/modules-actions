@@ -18,8 +18,9 @@ runs:
       shell: bash
       run: |
         source "$(werf ci-env github --as-file)"
-        export MODULES_MODULE_TAG=${{ inputs.module_tag }}
         werf build --repo=${{ inputs.module_source }}/${{ inputs.module_name }} --save-build-report --build-report-path images_tags_werf.json
+      env:
+        MODULES_MODULE_TAG: ${{ inputs.module_tag }}
 
     - name: Bundle the module image
       shell: bash
