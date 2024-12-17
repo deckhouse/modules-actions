@@ -19,8 +19,8 @@ runs:
   steps:
     - name: Set secondary repo if input exists
       shell: bash
-      if: ${{ github.event.inputs.secondary_repo != '' }}
-      run: echo "WERF_SECONDARY_REPO_1=${{ github.event.inputs.secondary_repo }}" >> $GITHUB_ENV
+      if: ${{ inputs.secondary_repo != '' }}
+      run: echo "WERF_SECONDARY_REPO_1=${{ inputs.secondary_repo }}" >> $GITHUB_ENV
 
     - name: Build dependency images
       shell: bash
