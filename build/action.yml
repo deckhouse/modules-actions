@@ -21,7 +21,7 @@ runs:
         type trdl >/dev/null 2>&1 || 
           { 
           curl -sSLO "https://tuf.trdl.dev/targets/releases/$trdl_version/linux-amd64/bin/trdl" && 
-          install -D trdl ~/bin/trdl ; 
+          install -D trdl /usr/local/bin/trdl ; 
           }
         type dmt >/dev/null 2>&1 ||
           { 
