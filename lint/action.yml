@@ -5,7 +5,6 @@ runs:
   using: "composite"
   steps:
     - name: Lint the module
-      continue-on-error: true
       shell: bash
       run: |
         trdl_version=$(curl -s https://tuf.trdl.dev/targets/channels/0/stable)
