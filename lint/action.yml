@@ -1,5 +1,5 @@
-name: 'Build Deckhouse Module'
-description: 'Build Deckhouse module'
+name: 'Lint Deckhouse Module'
+description: 'Lint Deckhouse module'
 
 runs:
   using: "composite"
