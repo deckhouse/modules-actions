@@ -1,6 +1,14 @@
 on: [push]
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    name: Lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: deckhouse/modules-actions/lint@v1
+
   build:
     runs-on: ubuntu-latest
     name: Build and Push images
