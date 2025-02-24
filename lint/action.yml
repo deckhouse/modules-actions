@@ -1,0 +1,31 @@
+name: 'Build Deckhouse Module'
+description: 'Build Deckhouse module'
+inputs:
+  module_source:
+    description: 'Registry repository address for of the module, e.g., registry.example.com/module-source'
+    required: true
+  module_name:
+    description: 'Name of the module, e.g., my-module'
+    required: true
+  module_tag:
+    description: 'The version of the module to deploy to release channel, e.g., v1.21.1'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Lint the module
+      shell: bash
+      run: |
+        trdl_version=$(curl -s https://tuf.trdl.dev/targets/channels/0/stable)
+        type trdl >/dev/null 2>&1 || 
+          { 
+          curl -sSLO "https://tuf.trdl.dev/targets/releases/$trdl_version/linux-amd64/bin/trdl" && 
+          install -D trdl /usr/local/bin/trdl ; 
+          }
+        type dmt >/dev/null 2>&1 ||
+          { 
+          trdl add dmt https://trrr.flant.dev/trdl-dmt/ 1 b6c51ab3509296ed9e085461ea35a0da70b2ae02ba8d500400670102cb86b100ae56e133c4c5f8dfe843cc995107fdd5f0037043cd6c149a7ae3c03ec9c44d8c &&
+          source $(trdl use dmt 0 stable) ;
+          }
+        dmt lint ./
