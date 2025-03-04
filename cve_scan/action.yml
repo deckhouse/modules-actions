@@ -59,12 +59,9 @@ runs:
         echo "Get Trivy"
         mkdir -p bin/trivy-${TRIVY_BIN_VERSION}
         curl --header "PRIVATE-TOKEN: ${TRIVY_TOKEN}" https://${DECKHOUSE_PRIVATE_REPO}/api/v4/projects/${TRIVY_REPO_ID}/packages/generic/deckhouse-trivy/v${TRIVY_BIN_VERSION}/trivy -o bin/trivy-${TRIVY_BIN_VERSION}/trivy
-        rm -rf bin/trivy
         chmod u+x bin/trivy-${TRIVY_BIN_VERSION}/trivy
-        ln -s ${PWD}/bin/trivy-${TRIVY_BIN_VERSION}/trivy bin/trivy
-        ls -la bin/trivy
-        bin/trivy --version
-        ${PWD}/bin/trivy-${TRIVY_BIN_VERSION}/trivy --version
+        echo "${PWD}/bin/trivy-${TRIVY_BIN_VERSION}" >> $GITHUB_PATH
+        trivy --version
         echo "Run Trivy scan"
         echo "Image to check: $IMAGE:$TAG"
         echo "Severity: $SEVERITY"
@@ -100,9 +97,9 @@ runs:
           # Output reports per images
           echo "    Scanning $IMAGE_REPORT_NAME"
           if [ "$additional_image_detected" == true ]; then
-            bin/trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity=$SEVERITY --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE:$TAG"
+            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity=$SEVERITY --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE:$TAG"
           else
-            bin/trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity=$SEVERITY --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE@$IMAGE_HASH"
+            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity=$SEVERITY --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE@$IMAGE_HASH"
           fi
           echo "    Done"
           echo ""
