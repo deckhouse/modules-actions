@@ -63,6 +63,8 @@ runs:
         chmod u+x bin/trivy-${TRIVY_BIN_VERSION}/trivy
         ln -s ${PWD}/bin/trivy-${TRIVY_BIN_VERSION}/trivy bin/trivy
         ls -la bin/trivy
+        bin/trivy --version
+        ${PWD}/bin/trivy-${TRIVY_BIN_VERSION}/trivy --version
         echo "Run Trivy scan"
         echo "Image to check: $IMAGE:$TAG"
         echo "Severity: $SEVERITY"
