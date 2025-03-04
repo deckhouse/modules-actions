@@ -1,0 +1,120 @@
+name: 'Trivy CVE Scan'
+description: 'Build Deckhouse module'
+inputs:
+  IMAGE:
+    description: 'URL to a registry image, e.g., registry.example.com/deckhouse/modules/module_name'
+    required: true
+  TAG:
+    description: 'module image tag'
+    required: true
+  MODULE_NAME:
+    description: 'module name'
+    required: true
+  DD_URL:
+    description: 'URL to defectDojo'
+    required: true
+  DD_TOKEN:
+    description: 'token of defectDojo to upload reports'
+    required: true
+  TRIVY_REGISTRY:
+    description: 'must be deckhouse prod registry, used to get trivy databases'
+    required: true
+  TRIVY_REGISTRY_USER:
+    description: 'username to log in to deckhouse prod registry'
+    required: true
+  TRIVY_REGISTRY_PASSWORD:
+    description: 'password to log in to deckhouse prod registry'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Trivy CVE Scan
+      shell: bash
+      env:
+        TRIVY_BIN_VERSION: v0.55.0
+        TRIVY_REPO_ID: "2181"
+        TRIVY_DB_URL: ${TRIVY_REGISTRY}/deckhouse/ee/security/trivy-db:2
+        TRIVY_JAVA_DB_URL: ${TRIVY_REGISTRY}/deckhouse/ee/security/trivy-java-db:1
+        TRIVY_POLICY_URL: ${TRIVY_REGISTRY}/deckhouse/ee/security/trivy-bdu:1
+        SEVERITY: "CRITICAL,HIGH"
+        IMAGES_DIGESTS_PATH: "/images_digests.json"
+      run: |
+        echo "Get Trivy"
+        mkdir -p bin/trivy-${TRIVY_BIN_VERSION}
+        curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" ${CI_API_V4_URL}/projects/${TRIVY_REPO_ID}/packages/generic/deckhouse-trivy/${TRIVY_BIN_VERSION}/trivy -o bin/trivy-${TRIVY_BIN_VERSION}/trivy
+        chmod u+x bin/trivy-${TRIVY_BIN_VERSION}/trivy
+        ln -s ${PWD}/bin/trivy-${TRIVY_BIN_VERSION}/trivy bin/trivy
+        echo "Run Trivy scan"
+        echo "Image to check: $IMAGE:$TAG"
+        echo "Severity: $SEVERITY"
+        echo "----------------------------------------------"
+        echo ""
+        echo "Getting module image"
+        crane export "$IMAGE:$TAG" "${MODULE_NAME}.tar"
+        mkdir "$MODULE_NAME"
+        tar xf "${MODULE_NAME}.tar" -C "${MODULE_NAME}/"
+        echo "Preparing images list to scan"
+        digests=$(cat "${MODULE_NAME}${IMAGES_DIGESTS_PATH}")
+        # Main module images to scan
+        digests=$(echo "$digests"|jq --arg i "$MODULE_NAME" --arg s "$TAG" '. += { ($i): ($s) }')
+        echo "Images to scan:"
+        echo "$digests"
+        mkdir -p out/json
+        date_iso=$(date -I)
+        for module_image in $(jq -rc 'to_entries[]' <<< "$digests"); do
+          IMAGE_NAME=$(jq -rc '.key' <<< "$module_image")
+          if [[ "$IMAGE_NAME" == "trivy" ]]; then
+            continue
+          fi
+          # Set flag if additional image to use tag instead of hash
+          additional_image_detected=false
+          if [ "$IMAGE_NAME" == "$MODULE_NAME" ]; then
+            additional_image_detected=true
+          fi
+          echo "----------------------------------------------"
+          echo "👾 Image: $IMAGE_NAME"
+          echo ""
+          IMAGE_HASH="$(jq -rc '.value' <<< "$module_image")"
+          IMAGE_REPORT_NAME="$MODULE_NAME::$IMAGE_NAME"
+          # Output reports per images
+          echo "    Scanning $IMAGE_REPORT_NAME"
+          if [ "$additional_image_detected" == true ]; then
+            bin/trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity=$SEVERITY --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE:$TAG"
+          else
+            bin/trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity=$SEVERITY --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE@$IMAGE_HASH"
+          fi
+          echo "    Done"
+          echo ""
+          echo " Uploading trivy CVE report for image ${IMAGE_NAME} of ${MODULE_NAME} module"
+          echo ""
+          curl -s -X POST \
+            ${DD_URL}/api/v2/reimport-scan/ \
+            -H "accept: application/json" \
+            -H "Content-Type: multipart/form-data"  \
+            -H "Authorization: Token ${DD_TOKEN}" \
+            -F "auto_create_context=True" \
+            -F "minimum_severity=Info" \
+            -F "active=true" \
+            -F "verified=true" \
+            -F "scan_type=Trivy Scan" \
+            -F "close_old_findings=true" \
+            -F "do_not_reactivate=false" \
+            -F "push_to_jira=false" \
+            -F "file=@out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" \
+            -F "product_type_name=Deckhouse images" \
+            -F "product_name=$MODULE_NAME" \
+            -F "scan_date=${date_iso}" \
+            -F "engagement_name=CVE Test: ${MODULE_NAME} Images" \
+            -F "service=${MODULE_NAME} / ${IMAGE_NAME}" \
+            -F "group_by=component_name+component_version" \
+            -F "deduplication_on_engagement=false" \
+            -F "tags=deckhouse_image,module:${MODULE_NAME},image:${IMAGE_NAME},branch:${TAG}" \
+            -F "test_title=[${MODULE_NAME}]: ${IMAGE_NAME}:${TAG}" \
+            -F "version=${TAG}" \
+            -F "build_id=${IMAGE_HASH}" \
+            -F "commit_hash=${CI_COMMIT_SHA}" \
+            -F "branch_tag=${TAG}" \
+            -F "apply_tags_to_findings=true" \
+          > /dev/null
+        done
