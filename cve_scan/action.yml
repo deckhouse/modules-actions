@@ -45,10 +45,17 @@ runs:
         TRIVY_POLICY_URL: ${TRIVY_REGISTRY}/deckhouse/ee/security/trivy-bdu:1
         SEVERITY: "CRITICAL,HIGH"
         IMAGES_DIGESTS_PATH: "/images_digests.json"
+        IMAGE: ${{inputs.IMAGE}}
+        TAG: ${{inputs.TAG}}
+        MODULE_NAME: ${{inputs.MODULE_NAME}}
+        DD_URL: ${{inputs.DD_URL}}
+        DD_TOKEN: ${{inputs.DD_TOKEN}}
+        TRIVY_REGISTRY: ${{inputs.TRIVY_REGISTRY}}
+        TRIVY_REGISTRY_USER: ${{inputs.TRIVY_REGISTRY_USER}}
+        TRIVY_REGISTRY_PASSWORD: ${{inputs.TRIVY_REGISTRY_PASSWORD}}
+        TRIVY_TOKEN: ${{inputs.TRIVY_TOKEN}}
+        DECKHOUSE_PRIVATE_REPO: ${{inputs.DECKHOUSE_PRIVATE_REPO}}
       run: |
-        echo "IMAGE TO SCAN: $IMAGE"
-        echo "IMAGE TO SCAN: $INPUT_IMAGE"
-        echo "IMAGE TO SCAN: ${{inputs.IMAGE}}"
         echo "Get Trivy"
         mkdir -p bin/trivy-${TRIVY_BIN_VERSION}
         curl --header "PRIVATE-TOKEN: ${TRIVY_TOKEN}" https://${DECKHOUSE_PRIVATE_REPO}/api/v4/projects/${TRIVY_REPO_ID}/packages/generic/deckhouse-trivy/v${TRIVY_BIN_VERSION}/trivy -o bin/trivy-${TRIVY_BIN_VERSION}/trivy
