@@ -25,6 +25,12 @@ inputs:
   TRIVY_REGISTRY_PASSWORD:
     description: 'password to log in to deckhouse prod registry'
     required: true
+  TRIVY_TOKEN:
+    description: 'token of private repo to get trivy from'
+    required: true
+  DECKHOUSE_PRIVATE_REPO:
+    description: 'url to private repo'
+    required: true
 
 runs:
   using: "composite"
@@ -42,7 +48,7 @@ runs:
       run: |
         echo "Get Trivy"
         mkdir -p bin/trivy-${TRIVY_BIN_VERSION}
-        curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" ${CI_API_V4_URL}/projects/${TRIVY_REPO_ID}/packages/generic/deckhouse-trivy/${TRIVY_BIN_VERSION}/trivy -o bin/trivy-${TRIVY_BIN_VERSION}/trivy
+        curl --header "PRIVATE-TOKEN: ${TRIVY_TOKEN}" https://${DECKHOUSE_PRIVATE_REPO}/api/v4/projects/${TRIVY_PROJECT_ID}/packages/generic/deckhouse-trivy/v${TRIVY_BIN_VERSION}/trivy -o bin/trivy-${TRIVY_BIN_VERSION}/trivy
         chmod u+x bin/trivy-${TRIVY_BIN_VERSION}/trivy
         ln -s ${PWD}/bin/trivy-${TRIVY_BIN_VERSION}/trivy bin/trivy
         echo "Run Trivy scan"

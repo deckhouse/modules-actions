@@ -34,3 +34,5 @@ jobs:
           TRIVY_REGISTRY: registry.deckhouse.io
           TRIVY_REGISTRY_USER: ${{ secrets.REGISTRY_LOGIN }}
           TRIVY_REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+          TRIVY_TOKEN: ${{secrets.FOX_ACCESS_TOKEN}}
+          DECKHOUSE_PRIVATE_REPO: ${{secrets.DECKHOUSE_PRIVATE_REPO}}
