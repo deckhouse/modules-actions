@@ -61,6 +61,8 @@ runs:
         curl --header "PRIVATE-TOKEN: ${TRIVY_TOKEN}" https://${DECKHOUSE_PRIVATE_REPO}/api/v4/projects/${TRIVY_REPO_ID}/packages/generic/deckhouse-trivy/v${TRIVY_BIN_VERSION}/trivy -o bin/trivy-${TRIVY_BIN_VERSION}/trivy
         chmod u+x bin/trivy-${TRIVY_BIN_VERSION}/trivy
         echo "${PWD}/bin/trivy-${TRIVY_BIN_VERSION}" >> $GITHUB_PATH
+        ls -la ${PWD}/bin/trivy-${TRIVY_BIN_VERSION}
+        which trivy
         trivy --version
         echo "Run Trivy scan"
         echo "Image to check: $IMAGE:$TAG"
