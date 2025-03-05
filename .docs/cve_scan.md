@@ -19,7 +19,6 @@ DD_TOKEN - token of defectDojo to upload reports
 TRIVY_REGISTRY - must be deckhouse prod registry, used to get trivy databases
 TRIVY_REGISTRY_USER - username to log in to deckhouse prod registry
 TRIVY_REGISTRY_PASSWORD - password to log in to deckhouse prod registry
-TRIVY_TOKEN - token of private repo to get trivy from
 DECKHOUSE_PRIVATE_REPO - url to private repo
 ```
 
@@ -37,7 +36,6 @@ Put the following step of job into required place of you GitHub Action file (usu
           TRIVY_REGISTRY: ${{ vars.PROD_REGISTRY }}
           TRIVY_REGISTRY_USER: ${{ vars.PROD_MODULES_REGISTRY_LOGIN }}
           TRIVY_REGISTRY_PASSWORD: ${{ secrets.PROD_MODULES_REGISTRY_PASSWORD }}
-          TRIVY_TOKEN: ${{secrets.FOX_ACCESS_TOKEN}}
           DECKHOUSE_PRIVATE_REPO: ${{secrets.DECKHOUSE_PRIVATE_REPO}}
 ```
 
