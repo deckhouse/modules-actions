@@ -7,11 +7,12 @@
 This repository contains GitHub Actions workflows for building and deploying modules for the Deckhouse Kubernetes Platform.
 
 ## Workflows
-| Workflow                          | Description                                                                                                           |
-|-----------------------------------|-----------------------------------------------------------------------------------------------------------------------|
-| [**setup**](./setup/action.yml)   | Sets up the environment for building and deploying modules. This workflow **must** be run before any other workflows. |
-| [**build**](./build/action.yml)   | Builds the Deckhouse modules using the [werf](https://werf.io/) tool.                                                 |
-| [**deploy**](./deploy/action.yml) | Deploys the Deckhouse modules to the one of selected release channels.                                                |
+| Workflow                              | Description                                                                                                           |
+|---------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
+| [**setup**](./setup/action.yml)       | Sets up the environment for building and deploying modules. This workflow **must** be run before any other workflows. |
+| [**build**](./build/action.yml)       | Builds the Deckhouse modules using the [werf](https://werf.io/) tool.                                                 |
+| [**deploy**](./deploy/action.yml)     | Deploys the Deckhouse modules to the one of selected release channels.                                                |
+| [**cve_scan**](./cve_scan/action.yml) | Trivy CVE Scan of module images. Documentation can be found [here](./.docs/cve_scan.md)                               |
 
 ## Examples
 
@@ -19,6 +20,7 @@ All examples are located in the [examples](./.examples) directory. They show how
 
 1. `build.yaml` — can be run for each PR commit and when a new release is created. Builds the modules and pushes them to the container registry.
 2. `deploy.yaml` — can be run after releasing a new version of the modules. Deploys the modules to the selected release channel.
+3. `cve_scan.yaml` — can run for each PR commit, manually and by push to main branch. Scans modules images for CVE and uploads reports to DefectDojo
 
 ## Usage
 

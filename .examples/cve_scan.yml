@@ -1,0 +1,37 @@
+on:
+  pull_request:
+    types: [opened, reopened, labeled, synchronize]
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      release_branch:
+        description: 'release branch name, example: release-1.68'
+        required: false
+
+jobs:
+  cve_scan:
+    runs-on: ubuntu-latest
+    name: Trivy CVE Scan
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sets env vars for PR
+        run: |
+          echo "MODULE_IMAGE_TAG=pr${{ github.event.number }}" >> $GITHUB_ENV
+        if: github.event_name == 'pull_request'
+      - name: Sets env vars for manual run
+        run: |
+          echo "MODULE_IMAGE_TAG=${{ github.event.inputs.release_branch || 'main' }}" >> $GITHUB_ENV
+        if: github.event_name == 'workflow_dispatch'
+      - uses: deckhouse/modules-actions/cve_scan@v1
+        with:
+          image: registry.example.com/deckhouse/modules/module_name
+          tag: ${{ env.MODULE_IMAGE_TAG || 'main' }}
+          module_name: your-module
+          dd_url: ${{secrets.DEFECTDOJO_HOST}}
+          dd_token: ${{secrets.DEFECTDOJO_API_TOKEN}}
+          trivy_registry: registry.deckhouse.io
+          trivy_registry_user: ${{ secrets.REGISTRY_LOGIN }}
+          trivy_registry_password: ${{ secrets.REGISTRY_PASSWORD }}
+          deckhouse_private_repo: ${{secrets.DECKHOUSE_PRIVATE_REPO}}
