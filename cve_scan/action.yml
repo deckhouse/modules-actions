@@ -62,7 +62,6 @@ runs:
         chmod u+x bin/trivy-${TRIVY_BIN_VERSION}/trivy
         echo "${PWD}/bin/trivy-${TRIVY_BIN_VERSION}" >> $GITHUB_PATH
         ls -la ${PWD}/bin/trivy-${TRIVY_BIN_VERSION}
-        ${TRIVY_PATH}/trivy --version
         trivy --version
         echo "Run Trivy scan"
         echo "Image to check: $IMAGE:$TAG"
@@ -99,9 +98,9 @@ runs:
           # Output reports per images
           echo "    Scanning $IMAGE_REPORT_NAME"
           if [ "$additional_image_detected" == true ]; then
-            ${TRIVY_PATH}/trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity=$SEVERITY --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE:$TAG"
+            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity=$SEVERITY --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE:$TAG"
           else
-            ${TRIVY_PATH}/trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity=$SEVERITY --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE@$IMAGE_HASH"
+            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity=$SEVERITY --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE@$IMAGE_HASH"
           fi
           echo "    Done"
           echo ""
