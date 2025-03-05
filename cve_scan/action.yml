@@ -95,9 +95,9 @@ runs:
           # Output reports per images
           echo "    Scanning $IMAGE_REPORT_NAME"
           if [ "$additional_image_detected" == true ]; then
-            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity=$SEVERITY --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE:$TAG"
+            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity=$SEVERITY --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE:$TAG" 2>&1
           else
-            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity=$SEVERITY --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE@$IMAGE_HASH"
+            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity=$SEVERITY --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE@$IMAGE_HASH" 2>&1
           fi
           echo "    Done"
           echo ""
@@ -124,7 +124,7 @@ runs:
             -F "service=${MODULE_NAME} / ${IMAGE_NAME}" \
             -F "group_by=component_name+component_version" \
             -F "deduplication_on_engagement=false" \
-            -F "tags=deckhouse_image,module:${MODULE_NAME},image:${IMAGE_NAME},branch:${TAG}" \
+            -F "tags=deckhouse_module,module:${MODULE_NAME},image:${IMAGE_NAME},branch:${TAG}" \
             -F "test_title=[${MODULE_NAME}]: ${IMAGE_NAME}:${TAG}" \
             -F "version=${TAG}" \
             -F "build_id=${IMAGE_HASH}" \
