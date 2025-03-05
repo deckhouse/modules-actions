@@ -38,7 +38,7 @@ runs:
     - name: Trivy CVE Scan
       shell: bash
       env:
-        TRIVY_BIN_VERSION: v0.55.0
+        TRIVY_BIN_VERSION: "0.55.0"
         TRIVY_REPO_ID: "2181"
         TRIVY_DB_URL: ${TRIVY_REGISTRY}/deckhouse/ee/security/trivy-db:2
         TRIVY_JAVA_DB_URL: ${TRIVY_REGISTRY}/deckhouse/ee/security/trivy-java-db:1
@@ -60,10 +60,10 @@ runs:
         mkdir -p bin/trivy-${TRIVY_BIN_VERSION}
         curl --header "PRIVATE-TOKEN: ${TRIVY_TOKEN}" https://${DECKHOUSE_PRIVATE_REPO}/api/v4/projects/${TRIVY_REPO_ID}/packages/generic/deckhouse-trivy/v${TRIVY_BIN_VERSION}/trivy -o bin/trivy-${TRIVY_BIN_VERSION}/trivy
         chmod u+x bin/trivy-${TRIVY_BIN_VERSION}/trivy
-        TRIVY_PATH="${PWD}/bin/trivy-${TRIVY_BIN_VERSION}"
+        echo "${PWD}/bin/trivy-${TRIVY_BIN_VERSION}" >> $GITHUB_PATH
         ls -la ${TRIVY_PATH}/trivy
-        cat ${TRIVY_PATH}/trivy
         ${TRIVY_PATH}/trivy --version
+        trivy --version
         echo "Run Trivy scan"
         echo "Image to check: $IMAGE:$TAG"
         echo "Severity: $SEVERITY"
