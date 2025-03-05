@@ -40,6 +40,17 @@ runs:
       env:
         TRIVY_BIN_VERSION: "0.55.0"
         TRIVY_REPO_ID: "2181"
+        DECKHOUSE_PRIVATE_REPO: ${{inputs.DECKHOUSE_PRIVATE_REPO}}
+      run: |
+        echo "Get Trivy"
+        mkdir -p bin/trivy-${TRIVY_BIN_VERSION}
+        curl https://${DECKHOUSE_PRIVATE_REPO}/api/v4/projects/${TRIVY_REPO_ID}/packages/generic/deckhouse-trivy/v${TRIVY_BIN_VERSION}/trivy -o bin/trivy-${TRIVY_BIN_VERSION}/trivy
+        chmod u+x bin/trivy-${TRIVY_BIN_VERSION}/trivy
+        echo "${PWD}/bin/trivy-${TRIVY_BIN_VERSION}" >> $GITHUB_PATH
+        cat $GITHUB_PATH
+    - name: Run Trivy CVE Scan
+      shell: bash
+      env:
         TRIVY_DB_URL: ${TRIVY_REGISTRY}/deckhouse/ee/security/trivy-db:2
         TRIVY_JAVA_DB_URL: ${TRIVY_REGISTRY}/deckhouse/ee/security/trivy-java-db:1
         TRIVY_POLICY_URL: ${TRIVY_REGISTRY}/deckhouse/ee/security/trivy-bdu:1
@@ -54,14 +65,7 @@ runs:
         TRIVY_REGISTRY_USER: ${{inputs.TRIVY_REGISTRY_USER}}
         TRIVY_REGISTRY_PASSWORD: ${{inputs.TRIVY_REGISTRY_PASSWORD}}
         TRIVY_TOKEN: ${{inputs.TRIVY_TOKEN}}
-        DECKHOUSE_PRIVATE_REPO: ${{inputs.DECKHOUSE_PRIVATE_REPO}}
       run: |
-        echo "Get Trivy"
-        mkdir -p bin/trivy-${TRIVY_BIN_VERSION}
-        curl --header "PRIVATE-TOKEN: ${TRIVY_TOKEN}" https://${DECKHOUSE_PRIVATE_REPO}/api/v4/projects/${TRIVY_REPO_ID}/packages/generic/deckhouse-trivy/v${TRIVY_BIN_VERSION}/trivy -o bin/trivy-${TRIVY_BIN_VERSION}/trivy
-        chmod u+x bin/trivy-${TRIVY_BIN_VERSION}/trivy
-        echo "${PWD}/bin/trivy-${TRIVY_BIN_VERSION}" >> $GITHUB_PATH
-        ls -la ${PWD}/bin/trivy-${TRIVY_BIN_VERSION}
         trivy --version
         echo "Run Trivy scan"
         echo "Image to check: $IMAGE:$TAG"
