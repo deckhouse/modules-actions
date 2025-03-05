@@ -54,12 +54,11 @@ runs:
         MODULE_NAME: ${{inputs.MODULE_NAME}}
         DD_URL: ${{inputs.DD_URL}}
         DD_TOKEN: ${{inputs.DD_TOKEN}}
-        TRIVY_REGISTRY: ${{inputs.TRIVY_REGISTRY}}
         TRIVY_REGISTRY_USER: ${{inputs.TRIVY_REGISTRY_USER}}
         TRIVY_REGISTRY_PASSWORD: ${{inputs.TRIVY_REGISTRY_PASSWORD}}
-        TRIVY_DB_URL: ${TRIVY_REGISTRY}/deckhouse/ee/security/trivy-db:2
-        TRIVY_JAVA_DB_URL: ${TRIVY_REGISTRY}/deckhouse/ee/security/trivy-java-db:1
-        TRIVY_POLICY_URL: ${TRIVY_REGISTRY}/deckhouse/ee/security/trivy-bdu:1
+        TRIVY_DB_URL: ${{inputs.TRIVY_REGISTRY}}/deckhouse/ee/security/trivy-db:2
+        TRIVY_JAVA_DB_URL: ${{inputs.TRIVY_REGISTRY}}/deckhouse/ee/security/trivy-java-db:1
+        TRIVY_POLICY_URL: ${{inputs.TRIVY_REGISTRY}}/deckhouse/ee/security/trivy-bdu:1
       run: |
         echo "Run Trivy scan"
         echo "Image to check: $IMAGE:$TAG"
