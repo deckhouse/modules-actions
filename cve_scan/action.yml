@@ -1,31 +1,31 @@
 name: 'Trivy CVE Scan'
 description: 'Build Deckhouse module'
 inputs:
-  IMAGE:
+  image:
     description: 'URL to a registry image, e.g., registry.example.com/deckhouse/modules/module_name'
     required: true
-  TAG:
+  tag:
     description: 'module image tag'
     required: true
-  MODULE_NAME:
+  module_name:
     description: 'module name'
     required: true
-  DD_URL:
+  dd_url:
     description: 'URL to defectDojo'
     required: true
-  DD_TOKEN:
+  dd_token:
     description: 'token of defectDojo to upload reports'
     required: true
-  TRIVY_REGISTRY:
+  trivy_registry:
     description: 'must be deckhouse prod registry, used to get trivy databases'
     required: true
-  TRIVY_REGISTRY_USER:
+  trivy_registry_user:
     description: 'username to log in to deckhouse prod registry'
     required: true
-  TRIVY_REGISTRY_PASSWORD:
+  trivy_registry_password:
     description: 'password to log in to deckhouse prod registry'
     required: true
-  DECKHOUSE_PRIVATE_REPO:
+  deckhouse_private_repo:
     description: 'url to private repo'
     required: true
 
@@ -37,7 +37,7 @@ runs:
       env:
         TRIVY_BIN_VERSION: "0.55.0"
         TRIVY_REPO_ID: "2181"
-        DECKHOUSE_PRIVATE_REPO: ${{inputs.DECKHOUSE_PRIVATE_REPO}}
+        DECKHOUSE_PRIVATE_REPO: ${{inputs.deckhouse_private_repo}}
       run: |
         echo "Get Trivy"
         mkdir -p bin/trivy-${TRIVY_BIN_VERSION}
@@ -49,16 +49,16 @@ runs:
       env:
         SEVERITY: "CRITICAL,HIGH"
         IMAGES_DIGESTS_PATH: "/images_digests.json"
-        IMAGE: ${{inputs.IMAGE}}
-        TAG: ${{inputs.TAG}}
-        MODULE_NAME: ${{inputs.MODULE_NAME}}
-        DD_URL: ${{inputs.DD_URL}}
-        DD_TOKEN: ${{inputs.DD_TOKEN}}
-        TRIVY_REGISTRY_USER: ${{inputs.TRIVY_REGISTRY_USER}}
-        TRIVY_REGISTRY_PASSWORD: ${{inputs.TRIVY_REGISTRY_PASSWORD}}
-        TRIVY_DB_URL: ${{inputs.TRIVY_REGISTRY}}/deckhouse/ee/security/trivy-db:2
-        TRIVY_JAVA_DB_URL: ${{inputs.TRIVY_REGISTRY}}/deckhouse/ee/security/trivy-java-db:1
-        TRIVY_POLICY_URL: ${{inputs.TRIVY_REGISTRY}}/deckhouse/ee/security/trivy-bdu:1
+        IMAGE: ${{inputs.image}}
+        TAG: ${{inputs.tag}}
+        MODULE_NAME: ${{inputs.module_name}}
+        DD_URL: ${{inputs.dd_url}}
+        DD_TOKEN: ${{inputs.dd_token}}
+        TRIVY_REGISTRY_USER: ${{inputs.trivy_registry_user}}
+        TRIVY_REGISTRY_PASSWORD: ${{inputs.trivy_registry_password}}
+        TRIVY_DB_URL: ${{inputs.trivy_registry}}/deckhouse/ee/security/trivy-db:2
+        TRIVY_JAVA_DB_URL: ${{inputs.trivy_registry}}/deckhouse/ee/security/trivy-java-db:1
+        TRIVY_POLICY_URL: ${{inputs.trivy_registry}}/deckhouse/ee/security/trivy-bdu:1
       run: |
         echo "Run Trivy scan"
         echo "Image to check: $IMAGE:$TAG"

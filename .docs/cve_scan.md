@@ -7,19 +7,19 @@ This CI file will run a Trivy CVE scan against the module images and its submodu
 
 ### Job level
 ```
-IMAGE - URL to a registry image, e.g., registry.example.com/deckhouse/modules/module_name
-TAG - module image tag
-MODULE_NAME - module name
+image - URL to a registry image, e.g., registry.example.com/deckhouse/modules/module_name
+tag - module image tag
+module_name - module name
 ```
 
-### GitLab Masked variables
+### GitHub Masked variables
 ```
-DD_URL - URL to defectDojo
-DD_TOKEN - token of defectDojo to upload reports
-TRIVY_REGISTRY - must be deckhouse prod registry, used to get trivy databases
-TRIVY_REGISTRY_USER - username to log in to deckhouse prod registry
-TRIVY_REGISTRY_PASSWORD - password to log in to deckhouse prod registry
-DECKHOUSE_PRIVATE_REPO - url to private repo
+dd_url - URL to defectDojo
+dd_token - token of defectDojo to upload reports
+trivy_registry - must be deckhouse prod registry, used to get trivy databases
+trivy_registry_user - username to log in to deckhouse prod registry
+trivy_registry_password - password to log in to deckhouse prod registry
+deckhouse_private_repo - url to private repo
 ```
 
 ## How to include
@@ -28,15 +28,15 @@ Put the following step of job into required place of you GitHub Action file (usu
 ```
       - uses: deckhouse/modules-actions/cve_scan@cve_scan_ci
         with:
-          IMAGE: registry.example.com/path/to/module
-          TAG: module_image_tag
-          MODULE_NAME: module_name
-          DD_URL: ${{secrets.DEFECTDOJO_HOST}}
-          DD_TOKEN: ${{secrets.DEFECTDOJO_API_TOKEN}}
-          TRIVY_REGISTRY: ${{ vars.PROD_REGISTRY }}
-          TRIVY_REGISTRY_USER: ${{ vars.PROD_MODULES_REGISTRY_LOGIN }}
-          TRIVY_REGISTRY_PASSWORD: ${{ secrets.PROD_MODULES_REGISTRY_PASSWORD }}
-          DECKHOUSE_PRIVATE_REPO: ${{secrets.DECKHOUSE_PRIVATE_REPO}}
+          image: registry.example.com/path/to/module
+          tag: module_image_tag
+          module_name: module_name
+          dd_url: ${{secrets.DEFECTDOJO_HOST}}
+          dd_token: ${{secrets.DEFECTDOJO_API_TOKEN}}
+          trivy_registry: ${{ vars.PROD_REGISTRY }}
+          trivy_registry_user: ${{ vars.PROD_MODULES_REGISTRY_LOGIN }}
+          trivy_registry_password: ${{ secrets.PROD_MODULES_REGISTRY_PASSWORD }}
+          deckhouse_private_repo: ${{secrets.DECKHOUSE_PRIVATE_REPO}}
 ```
 
 Usage example can be found [here](../.examples/cve_scan.yml)
