@@ -1,22 +1,56 @@
-name: 'Build Deckhouse Module'
-description: 'Build Deckhouse module'
+name: "Build Deckhouse Module"
+description: "Build Deckhouse module"
 inputs:
   module_source:
-    description: 'Registry repository address for of the module, e.g., registry.example.com/module-source'
+    description: "Registry repository address for of the module, e.g., registry.example.com/module-source"
     required: true
   module_name:
-    description: 'Name of the module, e.g., my-module'
+    description: "Name of the module, e.g., my-module"
     required: true
   module_tag:
-    description: 'The version of the module to deploy to release channel, e.g., v1.21.1'
+    description: "The version of the module to deploy to release channel, e.g., v1.21.1"
     required: true
+  secondary_repo:
+    description: "Secondary repository address for module, e.g., registry.example.com/module-source/module_name"
+    required: false
+  source_repo:
+    description: "Source repository address for the module"
+    required: false
+  source_repo_ssh_key:
+    description: "SSH private key for the source repository"
+    required: false
 
 runs:
   using: "composite"
   steps:
+    - name: Set secondary repo if input exists
+      shell: bash
+      if: ${{ inputs.secondary_repo != '' }}
+      run: echo "WERF_SECONDARY_REPO_1=${{ inputs.secondary_repo }}" >> $GITHUB_ENV
+
     - name: Build dependency images
       shell: bash
       run: |
+        source_repo="${{ inputs.source_repo }}"
+        source_repo_ssh_key="${{ inputs.source_repo_ssh_key }}"
+        if [[ $source_repo != "" && $source_repo_ssh_key != "" ]]; then
+          eval $(ssh-agent)
+          trap "kill -3 ${SSH_AGENT_PID}" ERR EXIT HUP INT QUIT TERM
+          ssh-add - <<< "${{ inputs.source_repo_ssh_key }}"
+          export SSH_KNOWN_HOSTS=~/.ssh/known_hosts
+
+          HOST=$(grep -oP '(?<=@)[^/:]+' <<< "${{ inputs.source_repo }}")
+          mkdir -p ~/.ssh
+          touch ~/.ssh/known_hosts
+          HOST_KEYS=$(ssh-keyscan -H "$HOST" 2>/dev/null)
+          while IFS= read -r KEY_LINE; do
+            CONSTANT_PART=$(awk '{print $2, $3}' <<< "$KEY_LINE")
+            if ! grep -q "$CONSTANT_PART" ~/.ssh/known_hosts; then
+              echo "$KEY_LINE" >> ~/.ssh/known_hosts
+            fi
+          done <<< "$HOST_KEYS"
+        fi
+
         source "$(werf ci-env github --as-file)"
         werf build --repo=${{ inputs.module_source }}/${{ inputs.module_name }} --save-build-report --build-report-path images_tags_werf.json
       env:
