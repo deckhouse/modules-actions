@@ -47,7 +47,7 @@ runs:
     - name: Run Trivy CVE Scan
       shell: bash
       env:
-        SEVERITY: "CRITICAL,HIGH"
+        SEVERITY: "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
         IMAGES_DIGESTS_PATH: "/images_digests.json"
         IMAGE: ${{inputs.image}}
         TAG: ${{inputs.tag}}
