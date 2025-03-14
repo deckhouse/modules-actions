@@ -102,7 +102,6 @@ runs:
           echo "MODULE_NAME: $MODULE_NAME"
           echo "IMAGE: $IMAGE"
           trivy --version
-          cat out/.trivyignore
           if [ "$additional_image_detected" == true ]; then
             echo "starting scan with tag"
             trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity "$SEVERITY" --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE:$TAG"
