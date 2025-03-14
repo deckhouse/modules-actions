@@ -94,26 +94,18 @@ runs:
           IMAGE_REPORT_NAME="$MODULE_NAME::$IMAGE_NAME"
           # Output reports per images
           echo "    Scanning $IMAGE_REPORT_NAME"
-          echo "additional_image_detected: $additional_image_detected"
-          echo "module_image: $module_image"
-          echo "IMAGE_NAME: $IMAGE_NAME"
-          echo "IMAGE_HASH: $IMAGE_HASH"
-          echo "IMAGE_REPORT_NAME: $IMAGE_REPORT_NAME"
-          echo "MODULE_NAME: $MODULE_NAME"
-          echo "IMAGE: $IMAGE"
-          trivy --version
           if [ "$additional_image_detected" == true ]; then
             echo "starting scan with tag"
-            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity "$SEVERITY" --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE:$TAG"
+            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE:$TAG"
             echo "scan with tag and json - ok"
-            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity "$SEVERITY" --ignorefile "out/.trivyignore" --format table --scanners vuln --quiet "$IMAGE:$TAG"
+            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --ignorefile "out/.trivyignore" --format table --scanners vuln --quiet "$IMAGE:$TAG"
             echo "scan with tag and table - ok"
           else
             echo "starting scan with hash"
-            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --debug "$IMAGE@$IMAGE_HASH"
-            echo "scan with hash and json - ok"
-            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --format table --scanners vuln --debug "$IMAGE@$IMAGE_HASH"
+            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity "$SEVERITY" --ignorefile "out/.trivyignore" --format table --scanners vuln --debug "$IMAGE@$IMAGE_HASH"
             echo "scan with hash and table - ok"
+            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity "$SEVERITY" --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --debug "$IMAGE@$IMAGE_HASH"
+            echo "scan with hash and json - ok"
           fi
           echo "    Done"
           echo ""
