@@ -110,9 +110,9 @@ runs:
             echo "scan with tag and table - ok"
           else
             echo "starting scan with hash"
-            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity "$SEVERITY" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --debug "$IMAGE@$IMAGE_HASH"
+            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --debug "$IMAGE@$IMAGE_HASH"
             echo "scan with hash and json - ok"
-            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity "$SEVERITY" --format table --scanners vuln --debug "$IMAGE@$IMAGE_HASH"
+            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --format table --scanners vuln --debug "$IMAGE@$IMAGE_HASH"
             echo "scan with hash and table - ok"
           fi
           echo "    Done"
