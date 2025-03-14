@@ -47,7 +47,7 @@ runs:
     - name: Run Trivy CVE Scan
       shell: bash
       env:
-        SEVERITY: "LOW,MEDIUM,HIGH,CRITICAL"
+        SEVERITY: "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
         IMAGES_DIGESTS_PATH: "/images_digests.json"
         IMAGE: ${{inputs.image}}
         TAG: ${{inputs.tag}}
@@ -102,6 +102,7 @@ runs:
           echo "MODULE_NAME: $MODULE_NAME"
           echo "IMAGE: $IMAGE"
           trivy --version
+          cat out/.trivyignore
           if [ "$additional_image_detected" == true ]; then
             echo "starting scan with tag"
             trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity "$SEVERITY" --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "$IMAGE:$TAG"
@@ -110,9 +111,9 @@ runs:
             echo "scan with tag and table - ok"
           else
             echo "starting scan with hash"
-            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity "$SEVERITY" --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --debug "$IMAGE@$IMAGE_HASH"
+            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity "$SEVERITY" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --debug "$IMAGE@$IMAGE_HASH"
             echo "scan with hash and json - ok"
-            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity "$SEVERITY" --ignorefile "out/.trivyignore" --format table --scanners vuln --debug "$IMAGE@$IMAGE_HASH"
+            trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --severity "$SEVERITY" --format table --scanners vuln --debug "$IMAGE@$IMAGE_HASH"
             echo "scan with hash and table - ok"
           fi
           echo "    Done"
