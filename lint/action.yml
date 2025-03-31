@@ -6,6 +6,9 @@ runs:
   steps:
     - name: Lint the module
       shell: bash
+      env:
+        DMT_METRICS_URL: ${{ secrets.DMT_METRICS_URL }}
+        DMT_METRICS_TOKEN: ${{ secrets.DMT_METRICS_TOKEN }}
       run: |
         trdl_version=$(curl -s https://tuf.trdl.dev/targets/channels/0/stable)
         type trdl >/dev/null 2>&1 || 
