@@ -1,5 +1,12 @@
 name: 'Lint Deckhouse Module'
 description: 'Lint Deckhouse module'
+inputs:
+  dmt_metrics_url:
+    description: 'URL to DMT metrics server'
+    required: true
+  dmt_metrics_token:
+    description: 'Token to DMT metrics server'
+    required: true
 
 runs:
   using: "composite"
@@ -7,8 +14,8 @@ runs:
     - name: Lint the module
       shell: bash
       env:
-        DMT_METRICS_URL: ${{ secrets.DMT_METRICS_URL }}
-        DMT_METRICS_TOKEN: ${{ secrets.DMT_METRICS_TOKEN }}
+        DMT_METRICS_URL: ${{ inputs.dmt_metrics_url }}
+        DMT_METRICS_TOKEN: ${{ inputs.dmt_metrics_token }}
       run: |
         trdl_version=$(curl -s https://tuf.trdl.dev/targets/channels/0/stable)
         type trdl >/dev/null 2>&1 || 
