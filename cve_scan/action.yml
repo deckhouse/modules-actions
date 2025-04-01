@@ -35,15 +35,16 @@ runs:
     - name: Get Trivy
       shell: bash
       env:
-        TRIVY_BIN_VERSION: "0.55.0"
+        TRIVY_BIN_VERSION: "v0.58.1"
         TRIVY_REPO_ID: "2181"
         DECKHOUSE_PRIVATE_REPO: ${{inputs.deckhouse_private_repo}}
       run: |
         echo "Get Trivy"
         mkdir -p bin/trivy-${TRIVY_BIN_VERSION}
-        curl https://${DECKHOUSE_PRIVATE_REPO}/api/v4/projects/${TRIVY_REPO_ID}/packages/generic/deckhouse-trivy/v${TRIVY_BIN_VERSION}/trivy -o bin/trivy-${TRIVY_BIN_VERSION}/trivy
+        curl https://${DECKHOUSE_PRIVATE_REPO}/api/v4/projects/${TRIVY_REPO_ID}/packages/generic/trivy-${TRIVY_BIN_VERSION}/${TRIVY_BIN_VERSION}/trivy -o bin/trivy-${TRIVY_BIN_VERSION}/trivy
         chmod u+x bin/trivy-${TRIVY_BIN_VERSION}/trivy
         echo "${PWD}/bin/trivy-${TRIVY_BIN_VERSION}" >> $GITHUB_PATH
+        trivy clean --all
     - name: Run Trivy CVE Scan
       shell: bash
       env:
