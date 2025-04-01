@@ -10,12 +10,12 @@ runs:
         trdl_version=$(curl -s https://tuf.trdl.dev/targets/channels/0/stable)
         type trdl >/dev/null 2>&1 || 
           { 
-          curl -sSLO "https://tuf.trdl.dev/targets/releases/$trdl_version/linux-amd64/bin/trdl" && 
-          install -D trdl /usr/local/bin/trdl ; 
+          curl -sSLO "https://tuf.trdl.dev/targets/releases/$trdl_version/linux-amd64/bin/trdl"
+          chmod +x trdl
           }
         type dmt >/dev/null 2>&1 ||
           { 
-          trdl add dmt https://trrr.flant.dev/trdl-dmt/ 0 e77d785600a8c8612b84b93a5a2e4c48188d68f7478356d0708213e928bf67b024ed412e702dc32930da5c5bfc9b1c44be3ee7a292f923327815c91c6c3c3833 &&
-          source $(trdl use dmt 0 stable) ;
+          ./trdl add dmt https://trrr.flant.dev/trdl-dmt/ 0 e77d785600a8c8612b84b93a5a2e4c48188d68f7478356d0708213e928bf67b024ed412e702dc32930da5c5bfc9b1c44be3ee7a292f923327815c91c6c3c3833 &&
+          source $(./trdl use dmt 0 stable) ;
           }
         dmt lint ./
