@@ -44,7 +44,7 @@ runs:
         curl https://${DECKHOUSE_PRIVATE_REPO}/api/v4/projects/${TRIVY_REPO_ID}/packages/generic/trivy-${TRIVY_BIN_VERSION}/${TRIVY_BIN_VERSION}/trivy -o bin/trivy-${TRIVY_BIN_VERSION}/trivy
         chmod u+x bin/trivy-${TRIVY_BIN_VERSION}/trivy
         echo "${PWD}/bin/trivy-${TRIVY_BIN_VERSION}" >> $GITHUB_PATH
-        trivy clean --all
+        bin/trivy-${TRIVY_BIN_VERSION}/trivy clean --all
     - name: Run Trivy CVE Scan
       shell: bash
       env:
@@ -77,6 +77,7 @@ runs:
         echo "Images to scan:"
         echo "$digests"
         mkdir -p out/json
+        touch out/.trivyignore
         date_iso=$(date -I)
         for module_image in $(jq -rc 'to_entries[]' <<< "$digests"); do
           IMAGE_NAME=$(jq -rc '.key' <<< "$module_image")
