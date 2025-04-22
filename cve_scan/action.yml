@@ -121,15 +121,15 @@ runs:
           echo "Getting module image"
           crane export "${module_image}:${module_tag}" "${MODULE_NAME}.tar"
           mkdir "$MODULE_NAME"
-          tar xf "${MODULE_NAME}.tar" -C "${MODULE_NAME}/"
+          tar xf "${MODULE_NAME}.tar" -C "${module_workdir}/"
           echo "Preparing images list to scan"
-          digests=$(cat "${MODULE_NAME}${IMAGES_DIGESTS_PATH}")
+          digests=$(cat "${module_workdir}${IMAGES_DIGESTS_PATH}")
           # Main module images to scan
           digests=$(echo "$digests"|jq --arg i "$MODULE_NAME" --arg s "${module_tag}" '. += { ($i): ($s) }')
           echo "Images to scan:"
           echo "$digests"
           mkdir -p out/json
-          touch out/.trivyignore
+          touch ${module_workdir}/.trivyignore
           date_iso=$(date -I)
           while read -r line; do
             IMAGE_NAME=$(jq -rc '.key' <<< "${line}")
@@ -138,26 +138,26 @@ runs:
             fi
             # Set flag if additional image to use tag instead of hash
             additional_image_detected=false
-            if [ "$module_image" == "$MODULE_NAME" ]; then
+            if [ "${IMAGE_NAME}" == "${MODULE_NAME}" ]; then
               additional_image_detected=true
             fi
             echo "----------------------------------------------"
-            echo "👾 Image: $module_image"
+            echo "👾 Image: ${IMAGE_NAME}"
             echo ""
             IMAGE_HASH="$(jq -rc '.value' <<< "$line")"
-            IMAGE_REPORT_NAME="$MODULE_NAME::$module_image"
+            IMAGE_REPORT_NAME="${MODULE_NAME}::${IMAGE_NAME}"
             # Output reports per images
             echo "    Scanning $IMAGE_REPORT_NAME"
             if [ "$additional_image_detected" == true ]; then
-              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --ignorefile "out/.trivyignore" --format table --scanners vuln --quiet "${module_image}:${module_tag}"
-              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${module_image}_report.json" --quiet "${module_image}:${module_tag}"
+              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${IMAGE_NAME}:${module_tag}"
+              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --ignorefile "${module_workdir}/.trivyignore" --format json --scanners vuln --output "${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "${IMAGE_NAME}:${module_tag}"
             else
-              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --ignorefile "out/.trivyignore" --format table --scanners vuln --quiet "${module_image}@${IMAGE_HASH}"
-              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --ignorefile "out/.trivyignore" --format json --scanners vuln --output "out/json/d8_${MODULE_NAME}_${module_image}_report.json" --quiet "${module_image}@${IMAGE_HASH}"
+              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${IMAGE_NAME}@${IMAGE_HASH}"
+              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --ignorefile "${module_workdir}/.trivyignore" --format json --scanners vuln --output "${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "${IMAGE_NAME}@${IMAGE_HASH}"
             fi
             echo "    Done"
             echo ""
-            echo " Uploading trivy CVE report for image ${module_image} of ${MODULE_NAME} module"
+            echo " Uploading trivy CVE report for image ${IMAGE_NAME} of ${MODULE_NAME} module"
             echo ""
             curl -s -X POST \
               ${DD_URL}/api/v2/reimport-scan/ \
@@ -172,16 +172,16 @@ runs:
               -F "close_old_findings=true" \
               -F "do_not_reactivate=false" \
               -F "push_to_jira=false" \
-              -F "file=@out/json/d8_${MODULE_NAME}_${module_image}_report.json" \
+              -F "file=@out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" \
               -F "product_type_name=Deckhouse images" \
               -F "product_name=$MODULE_NAME" \
               -F "scan_date=${date_iso}" \
               -F "engagement_name=CVE Test: ${MODULE_NAME} Images" \
-              -F "service=${MODULE_NAME} / ${module_image}" \
+              -F "service=${MODULE_NAME} / ${IMAGE_NAME}" \
               -F "group_by=component_name+component_version" \
               -F "deduplication_on_engagement=false" \
-              -F "tags=deckhouse_module,module:${MODULE_NAME},image:${module_image},branch:${module_tag}" \
-              -F "test_title=[${MODULE_NAME}]: ${module_image}:${module_tag}" \
+              -F "tags=deckhouse_module,module:${MODULE_NAME},image:${IMAGE_NAME},branch:${module_tag}" \
+              -F "test_title=[${MODULE_NAME}]: ${IMAGE_NAME}:${module_tag}" \
               -F "version=${module_tag}" \
               -F "build_id=${IMAGE_HASH}" \
               -F "commit_hash=${CI_COMMIT_SHA}" \
