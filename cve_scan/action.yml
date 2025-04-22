@@ -87,7 +87,7 @@ runs:
         fi
 
         echo "Getting tags to scan"
-        if [ "${SCAN_THREE_LAST_RELEASES}" == "true" ]; then
+        if [ "${{ inputs.scan_three_last_releases }}" == "true" ]; then
           # Get release tags by regexp, sort by sevmer desc, cut to get minor version, uniq and get 3 latest
           latest_minor_releases=($(crane ls "${PROD_REGISTRY_MODULE_BASEDIR}/${MODULE_NAME}" | grep "v[0-9]*\." | sort -V -r | cut -d "-" -f 1|cut -d "." -f -2 | uniq| head -n 3))
           for r in ${latest_minor_releases[*]}; do
@@ -115,7 +115,7 @@ runs:
           echo "----------------------------------------------"
           echo ""
           echo "Getting module image"
-          crane export ""${module_image}":"${module_tag}"" "${MODULE_NAME}.tar"
+          crane export "${module_image}:${module_tag}" "${MODULE_NAME}.tar"
           mkdir "$MODULE_NAME"
           tar xf "${MODULE_NAME}.tar" -C "${MODULE_NAME}/"
           echo "Preparing images list to scan"
