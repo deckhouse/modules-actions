@@ -113,8 +113,9 @@ runs:
           module_reports="${workdir}/${MODULE_NAME}_${module_tag}/reports"
           mkdir -p "${module_workdir}"
           mkdir -p "${module_reports}"
+          touch ${module_workdir}/.trivyignore
           echo "Run Trivy scan"
-          echo "Image to check: "${module_image}:${module_tag}"
+          echo "Image to check: ${module_image}:${module_tag}"
           echo "Severity: $SEVERITY"
           echo "----------------------------------------------"
           echo ""
@@ -128,8 +129,6 @@ runs:
           digests=$(echo "$digests"|jq --arg i "$MODULE_NAME" --arg s "${module_tag}" '. += { ($i): ($s) }')
           echo "Images to scan:"
           echo "$digests"
-          mkdir -p out/json
-          touch ${module_workdir}/.trivyignore
           date_iso=$(date -I)
           while read -r line; do
             IMAGE_NAME=$(jq -rc '.key' <<< "${line}")
@@ -172,7 +171,7 @@ runs:
               -F "close_old_findings=true" \
               -F "do_not_reactivate=false" \
               -F "push_to_jira=false" \
-              -F "file=@out/json/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" \
+              -F "file=@${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" \
               -F "product_type_name=Deckhouse images" \
               -F "product_name=$MODULE_NAME" \
               -F "scan_date=${date_iso}" \
