@@ -121,7 +121,6 @@ runs:
           echo ""
           echo "Getting module image"
           crane export "${module_image}:${module_tag}" "${MODULE_NAME}.tar"
-          mkdir "$MODULE_NAME"
           tar xf "${MODULE_NAME}.tar" -C "${module_workdir}/"
           echo "Preparing images list to scan"
           digests=$(cat "${module_workdir}${IMAGES_DIGESTS_PATH}")
