@@ -37,8 +37,14 @@ inputs:
   deckhouse_private_repo:
     description: 'url to private repo'
     required: true
-  scan_three_last_releases:
-    description: 'whether to scan last 3 releases or not. useful for scheduled task'
+  scan_several_lastest_releases:
+    description: 'true/false. whether to scan last several releases or not. For scheduled pipelines it is always true'
+    required: false
+  latest_releases_amount:
+    description: 'Number of latest releases to scan. Default is: 3'
+    required: false
+  severity:
+    description: 'Vulnerabilities severity to scan. Default is: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
     required: false
 
 runs:
@@ -52,7 +58,7 @@ runs:
     - name: Get Trivy
       shell: bash
       env:
-        TRIVY_BIN_VERSION: "v0.58.1"
+        TRIVY_BIN_VERSION: "v0.60.0"
         TRIVY_REPO_ID: "2181"
         DECKHOUSE_PRIVATE_REPO: ${{inputs.deckhouse_private_repo}}
       run: |
@@ -65,7 +71,6 @@ runs:
     - name: Run Trivy CVE Scan
       shell: bash
       env:
-        SEVERITY: "HIGH,CRITICAL"
         IMAGES_DIGESTS_PATH: "/images_digests.json"
         IMAGE: "${{inputs.image}}"
         TAG: "${{inputs.tag}}"
@@ -77,20 +82,32 @@ runs:
         TRIVY_DB_URL: "${{inputs.prod_registry}}/deckhouse/ee/security/trivy-db:2"
         TRIVY_JAVA_DB_URL: "${{inputs.prod_registry}}/deckhouse/ee/security/trivy-java-db:1"
         TRIVY_POLICY_URL: "${{inputs.prod_registry}}/deckhouse/ee/security/trivy-bdu:1"
+        SCAN_SEVERAL_LASTEST_RELEASES: "${{inputs.scan_several_lastest_releases}}"
+        LATEST_RELEASES_AMOUNT: "${{inputs.latest_releases_amount || '3'}}"
+        SEVERITY: "${{inputs.severity || 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'}}"
       run: |
-        #UNKNOWN,LOW,MEDIUM,
-        # Do not use input var TAG if not merge request
-        if [ "${{ github.event_name }}" == "pull_request" ]; then
-          module_tags=("${TAG}")
-        else
-          module_tags=(${{ github.event.repository.default_branch }})
+        if [ "${{ github.event_name }}" == "schedule" ]; then
+          SCAN_SEVERAL_LASTEST_RELEASES="true"
         fi
 
         echo "Getting tags to scan"
-        if [ "${{ inputs.scan_three_last_releases }}" == "true" ]; then
+        module_tags=("${TAG}")
+        # Check if provided tag for manual run is for release
+        if [ "${{ github.event_name }}" != "pull_request" ]; then
+          if [ "${TAG}" != "${{ github.event.repository.default_branch }}" ]; then
+            # if some specific release is defined - scan only it
+            if echo "${TAG}"|grep -q "^[0-9]*\.[0-9]*$"; then
+              module_tags=($(crane ls "${PROD_REGISTRY_MODULE_BASEDIR}/${MODULE_NAME}" | grep "^v${TAG}\.[0-9]*$" | sort -V -r | head -n 1))
+            else
+              echo "ERROR: Please specify required release in the following format: [0-9]*\.[0-9]*"
+              exit 1
+            fi
+          fi
+        fi
+        if [ "${SCAN_SEVERAL_LASTEST_RELEASES}" == "true" ]; then
           # Get release tags by regexp, sort by sevmer desc, cut to get minor version, uniq and get 3 latest
           releases=($(crane ls "${PROD_REGISTRY_MODULE_BASEDIR}/${MODULE_NAME}" | grep "^v[0-9]*\.[0-9]*\.[0-9]*" | sort -V -r))
-          latest_minor_releases=($(printf '%s\n' "${releases[@]}"| cut -d "." -f -2 | uniq | head -n 3))
+          latest_minor_releases=($(printf '%s\n' "${releases[@]}"| cut -d "." -f -2 | uniq | head -n ${LATEST_RELEASES_AMOUNT}))
           for r in "${latest_minor_releases[@]}"; do
             module_tags+=($(printf '%s\n' "${releases[@]}" | grep "${r}" | sort -V -r|head -n 1))
           done
@@ -105,7 +122,7 @@ runs:
           dd_image_version="${module_tag}"
           module_image="${DEV_REGISTRY_MODULE_BASEDIR}/${MODULE_NAME}"
           # If we are scanning release images - we need to redefine image path to prod registry
-          if echo "${module_tag}" | grep -s "^v[0-9]*\.[0-9]*\.[0-9]*" && [[ "${{ github.event_name }}" != "pull_request" ]]; then
+          if echo "${module_tag}" | grep -q "^v[0-9]*\.[0-9]*\.[0-9]*" && [[ "${{ github.event_name }}" != "pull_request" ]]; then
             module_image="${PROD_REGISTRY_MODULE_BASEDIR}/${MODULE_NAME}"
             dd_short_release_tag="release:$(echo ${module_tag} | cut -d '.' -f -2 | sed 's/^v//')"
             dd_full_release_tag="image_release_tag:${module_tag}"
@@ -118,7 +135,7 @@ runs:
           touch ${module_workdir}/.trivyignore
           echo "Run Trivy scan"
           echo "Image to check: ${module_image}:${module_tag}"
-          echo "Severity: $SEVERITY"
+          echo "Severity: ${SEVERITY}"
           echo "----------------------------------------------"
           echo ""
           echo "Getting module image"
@@ -142,26 +159,25 @@ runs:
               additional_image_detected=true
             fi
             echo "----------------------------------------------"
-            echo "👾 Image: ${IMAGE_NAME}"
+            echo "👾 Scaning image \"${IMAGE_NAME}\" of module \"${MODULE_NAME}\" for tag \"${module_tag}\""
             echo ""
             IMAGE_HASH="$(jq -rc '.value' <<< "$line")"
-            IMAGE_REPORT_NAME="${MODULE_NAME}::${IMAGE_NAME}"
-            # Output reports per images
-            echo "    Scanning $IMAGE_REPORT_NAME"
+
             if [ "$additional_image_detected" == true ]; then
-              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${module_image}:${module_tag}"
-              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --ignorefile "${module_workdir}/.trivyignore" --format json --scanners vuln --output "${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "${module_image}:${module_tag}"
+              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${module_image}:${module_tag}"
+              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format json --scanners vuln --output "${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "${module_image}:${module_tag}"
             else
-              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${module_image}@${IMAGE_HASH}"
-              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "$SEVERITY" --ignorefile "${module_workdir}/.trivyignore" --format json --scanners vuln --output "${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "${module_image}@${IMAGE_HASH}"
+              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${module_image}@${IMAGE_HASH}"
+              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format json --scanners vuln --output "${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "${module_image}@${IMAGE_HASH}"
             fi
             echo "    Done"
             echo ""
             echo " Uploading trivy CVE report for image ${IMAGE_NAME} of ${MODULE_NAME} module"
             echo ""
-            curl -X POST \
-              --retry 3 \
-              --retry-delay 5 \
+            curl -f -X POST \
+              --retry 5 \
+              --retry-delay 10 \
+              --retry-all-errors \
               ${DD_URL}/api/v2/reimport-scan/ \
               -H "accept: application/json" \
               -H "Content-Type: multipart/form-data"  \
