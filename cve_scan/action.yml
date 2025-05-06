@@ -5,40 +5,40 @@ inputs:
     description: 'URL to a registry image, e.g., registry.example.com/deckhouse/modules/module_name'
     required: true
   tag:
-    description: 'module image tag'
+    description: 'Module image tag'
     required: true
   module_name:
-    description: 'module name'
+    description: 'Module name'
     required: true
   dd_url:
     description: 'URL to defectDojo'
     required: true
   dd_token:
-    description: 'token of defectDojo to upload reports'
+    description: 'Token of defectDojo to upload reports'
     required: true
   prod_registry:
-    description: 'must be deckhouse prod registry, used to get trivy databases and release images'
+    description: 'Must be deckhouse prod registry, used to get trivy databases and release images'
     required: true
   prod_registry_user:
-    description: 'username to log in to deckhouse prod registry'
+    description: 'Username to log in to deckhouse prod registry'
     required: true
   prod_registry_password:
-    description: 'password to log in to deckhouse prod registry'
+    description: 'Password to log in to deckhouse prod registry'
     required: true
   dev_registry:
-    description: ' must be deckhouse dev registry, used to get dev images'
+    description: 'Must be deckhouse dev registry, used to get dev images'
     required: true
   dev_registry_user:
-    description: 'username to log in to deckhouse dev registry'
+    description: 'Username to log in to deckhouse dev registry'
     required: true
   dev_registry_password:
-    description: 'password to log in to deckhouse dev registry'
+    description: 'Password to log in to deckhouse dev registry'
     required: true
   deckhouse_private_repo:
-    description: 'url to private repo'
+    description: 'URL to private repo to get Trivy from'
     required: true
   scan_several_lastest_releases:
-    description: 'true/false. whether to scan last several releases or not. For scheduled pipelines it is always true'
+    description: 'true/false. Whether to scan last several releases or not. For scheduled pipelines override will not work as value is always true'
     required: false
   latest_releases_amount:
     description: 'Number of latest releases to scan. Default is: 3'
@@ -165,10 +165,14 @@ runs:
             IMAGE_HASH="$(jq -rc '.value' <<< "$line")"
 
             if [ "$additional_image_detected" == true ]; then
-              trivy i --policy "${TRIVY_POLICY_URL}" --java-db-repository "${TRIVY_JAVA_DB_URL}" --db-repository "${TRIVY_DB_URL}" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${module_image}:${module_tag}"
+              if [ "${TRIVY_REPORTS_LOG_OUTPUT}" != "false" ]; then
+                trivy i --policy "${TRIVY_POLICY_URL}" --java-db-repository "${TRIVY_JAVA_DB_URL}" --db-repository "${TRIVY_DB_URL}" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${module_image}:${module_tag}"
+              fi
               trivy i --policy "${TRIVY_POLICY_URL}" --java-db-repository "${TRIVY_JAVA_DB_URL}" --db-repository "${TRIVY_DB_URL}" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format json --scanners vuln --output "${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "${module_image}:${module_tag}"
             else
-              trivy i --policy "${TRIVY_POLICY_URL}" --java-db-repository "${TRIVY_JAVA_DB_URL}" --db-repository "${TRIVY_DB_URL}" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${module_image}@${IMAGE_HASH}"
+              if [ "${TRIVY_REPORTS_LOG_OUTPUT}" != "false" ]; then
+                trivy i --policy "${TRIVY_POLICY_URL}" --java-db-repository "${TRIVY_JAVA_DB_URL}" --db-repository "${TRIVY_DB_URL}" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${module_image}@${IMAGE_HASH}"
+              fi
               trivy i --policy "${TRIVY_POLICY_URL}" --java-db-repository "${TRIVY_JAVA_DB_URL}" --db-repository "${TRIVY_DB_URL}" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format json --scanners vuln --output "${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "${module_image}@${IMAGE_HASH}"
             fi
             echo "    Done"
