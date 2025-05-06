@@ -174,7 +174,7 @@ runs:
             echo ""
             echo " Uploading trivy CVE report for image ${IMAGE_NAME} of ${MODULE_NAME} module"
             echo ""
-            curl -f -X POST \
+            curl -s -S -o /dev/null --fail-with-body -X POST \
               --retry 5 \
               --retry-delay 10 \
               --retry-all-errors \
@@ -204,8 +204,7 @@ runs:
               -F "build_id=${IMAGE_HASH}" \
               -F "commit_hash=${CI_COMMIT_SHA}" \
               -F "branch_tag=${module_tag}" \
-              -F "apply_tags_to_findings=true" \
-            > /dev/null
+              -F "apply_tags_to_findings=true"
           done < <(jq -rc 'to_entries[]' <<< "${digests}")
         done
         rm -r ${workdir}
