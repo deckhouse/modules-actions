@@ -145,9 +145,9 @@ runs:
           echo "Preparing images list to scan"
           digests=$(cat "${module_workdir}${IMAGES_DIGESTS_PATH}")
           # Main module images to scan
-          digests=$(echo "$digests"|jq --arg i "$MODULE_NAME" --arg s "${module_tag}" '. += { ($i): ($s) }')
+          digests=$(echo "${digests}"|jq --arg i "${MODULE_NAME}" --arg s "${module_tag}" '. += { ($i): ($s) }')
           echo "Images to scan:"
-          echo "$digests"
+          echo "${digests}"
           date_iso=$(date -I)
           while read -r line; do
             IMAGE_NAME=$(jq -rc '.key' <<< "${line}")
@@ -165,11 +165,11 @@ runs:
             IMAGE_HASH="$(jq -rc '.value' <<< "$line")"
 
             if [ "$additional_image_detected" == true ]; then
-              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${module_image}:${module_tag}"
-              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format json --scanners vuln --output "${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "${module_image}:${module_tag}"
+              trivy i --policy "${TRIVY_POLICY_URL}" --java-db-repository "${TRIVY_JAVA_DB_URL}" --db-repository "${TRIVY_DB_URL}" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${module_image}:${module_tag}"
+              trivy i --policy "${TRIVY_POLICY_URL}" --java-db-repository "${TRIVY_JAVA_DB_URL}" --db-repository "${TRIVY_DB_URL}" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format json --scanners vuln --output "${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "${module_image}:${module_tag}"
             else
-              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${module_image}@${IMAGE_HASH}"
-              trivy i --policy "$TRIVY_POLICY_URL" --java-db-repository "$TRIVY_JAVA_DB_URL" --db-repository "$TRIVY_DB_URL" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format json --scanners vuln --output "${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "${module_image}@${IMAGE_HASH}"
+              trivy i --policy "${TRIVY_POLICY_URL}" --java-db-repository "${TRIVY_JAVA_DB_URL}" --db-repository "${TRIVY_DB_URL}" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${module_image}@${IMAGE_HASH}"
+              trivy i --policy "${TRIVY_POLICY_URL}" --java-db-repository "${TRIVY_JAVA_DB_URL}" --db-repository "${TRIVY_DB_URL}" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format json --scanners vuln --output "${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "${module_image}@${IMAGE_HASH}"
             fi
             echo "    Done"
             echo ""
