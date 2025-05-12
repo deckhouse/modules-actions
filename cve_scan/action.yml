@@ -1,9 +1,6 @@
 name: 'Trivy CVE Scan'
 description: 'Build Deckhouse module'
 inputs:
-  image:
-    description: 'URL to a registry image, e.g., registry.example.com/deckhouse/modules/module_name'
-    required: true
   tag:
     description: 'Module image tag'
     required: true
@@ -46,6 +43,12 @@ inputs:
   severity:
     description: 'Vulnerabilities severity to scan. Default is: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
     required: false
+  module_prod_registry_custom_path:
+    description: 'Module custom path in prod registry. Example: flant/modules'
+    required: false
+  module_dev_registry_custom_path:
+    description: 'Module custom path in dev registry. Example: flant/modules'
+    required: false
 
 runs:
   using: "composite"
@@ -73,23 +76,26 @@ runs:
       shell: bash
       env:
         IMAGES_DIGESTS_PATH: "/images_digests.json"
-        IMAGE: "${{inputs.image}}"
         TAG: "${{inputs.tag}}"
         MODULE_NAME: "${{inputs.module_name}}"
         DD_URL: "${{inputs.dd_url}}"
         DD_TOKEN: "${{inputs.dd_token}}"
-        PROD_REGISTRY_MODULE_BASEDIR: "${{inputs.prod_registry}}/deckhouse/fe/modules"
-        DEV_REGISTRY_MODULE_BASEDIR: "${{inputs.dev_registry}}/sys/deckhouse-oss/modules"
         TRIVY_DB_URL: "${{inputs.prod_registry}}/deckhouse/ee/security/trivy-db:2"
         TRIVY_JAVA_DB_URL: "${{inputs.prod_registry}}/deckhouse/ee/security/trivy-java-db:1"
         TRIVY_POLICY_URL: "${{inputs.prod_registry}}/deckhouse/ee/security/trivy-bdu:1"
         SCAN_SEVERAL_LASTEST_RELEASES: "${{inputs.scan_several_lastest_releases}}"
         LATEST_RELEASES_AMOUNT: "${{inputs.latest_releases_amount || '3'}}"
         SEVERITY: "${{inputs.severity || 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'}}"
+        MODULE_PROD_REGISTRY_PATH: "${{inputs.module_prod_registry_custom_path || 'deckhouse/fe/modules'}}"
+        MODULE_DEV_REGISTRY_PATH: "${{inputs.module_dev_registry_custom_path || 'sys/deckhouse-oss/modules'}}"
       run: |
         if [ "${{ github.event_name }}" == "schedule" ]; then
           SCAN_SEVERAL_LASTEST_RELEASES="true"
         fi
+
+        echo "Setting up registry path for module"
+        PROD_REGISTRY_MODULE_BASEDIR="${{inputs.prod_registry}}/${MODULE_PROD_REGISTRY_PATH}"
+        DEV_REGISTRY_MODULE_BASEDIR="${{inputs.dev_registry}}/${MODULE_DEV_REGISTRY_PATH}"
 
         echo "Getting tags to scan"
         module_tags=("${TAG}")
@@ -116,6 +122,9 @@ runs:
 
         echo "CVE Scan will be applied to the following tags of ${MODULE_NAME}"
         echo "${module_tags[*]}"
+        workdir="trivy_scan"
+        # remove workdir in case it was not removed on previous run
+        rm -rf "${workdir}"
         # Scan in loop for provided list of tags
         for module_tag in ${module_tags[*]}; do
           dd_short_release_tag=""
@@ -129,7 +138,6 @@ runs:
             dd_full_release_tag="image_release_tag:${module_tag}"
             dd_image_version="$(echo ${dd_short_release_tag} | sed 's/^release\://')"
           fi
-          workdir="trivy_scan"
           module_workdir="${workdir}/${MODULE_NAME}_${module_tag}"
           module_reports="${module_workdir}/reports"
           mkdir -p "${module_reports}"
