@@ -26,7 +26,6 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
       - uses: deckhouse/modules-actions/cve_scan@v1
         with:
-          image: registry.example.com/deckhouse/modules/module_name
           tag: ${{ env.MODULE_IMAGE_TAG || 'main' }}
           module_name: your-module
           dd_url: ${{secrets.DEFECTDOJO_HOST}}

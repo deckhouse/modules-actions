@@ -67,11 +67,18 @@ runs:
       run: |
         echo "Get Trivy"
         echo "Trivy version: ${TRIVY_BIN_VERSION}"
-        mkdir -p bin/trivy-${TRIVY_BIN_VERSION}
+        mkdir -p cve_scan/bin/trivy-${TRIVY_BIN_VERSION}
         curl -s --fail-with-body https://${DECKHOUSE_PRIVATE_REPO}/api/v4/projects/${TRIVY_REPO_ID}/packages/generic/trivy-${TRIVY_BIN_VERSION}/${TRIVY_BIN_VERSION}/trivy -o bin/trivy-${TRIVY_BIN_VERSION}/trivy
-        chmod u+x bin/trivy-${TRIVY_BIN_VERSION}/trivy
-        echo "${PWD}/bin/trivy-${TRIVY_BIN_VERSION}" >> $GITHUB_PATH
-        bin/trivy-${TRIVY_BIN_VERSION}/trivy clean --all
+        chmod u+x cve_scan/bin/trivy-${TRIVY_BIN_VERSION}/trivy
+        echo "${PWD}/cve_scan/bin/trivy-${TRIVY_BIN_VERSION}" >> $GITHUB_PATH
+        cve_scan/bin/trivy-${TRIVY_BIN_VERSION}/trivy clean --all
+
+        echo "Updating Trivy Data Bases"
+        mkdir -p "cve_scan/bin/trivy_cache"
+        cve_scan/bin/trivy-${TRIVY_BIN_VERSION}/trivy image --download-db-only --db-repository "${TRIVY_DB_URL}" --cache-dir "cve_scan/bin/trivy_cache"
+        cve_scan/bin/trivy-${TRIVY_BIN_VERSION}/trivy image --download-java-db-only --java-db-repository "${TRIVY_JAVA_DB_URL}" --cache-dir "cve_scan/bin/trivy_cache"
+
+
     - name: Run Trivy CVE Scan
       shell: bash
       env:
@@ -174,14 +181,14 @@ runs:
 
             if [ "$additional_image_detected" == true ]; then
               if [ "${TRIVY_REPORTS_LOG_OUTPUT}" != "false" ]; then
-                trivy i --policy "${TRIVY_POLICY_URL}" --java-db-repository "${TRIVY_JAVA_DB_URL}" --db-repository "${TRIVY_DB_URL}" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${module_image}:${module_tag}"
+                trivy i --policy "${TRIVY_POLICY_URL}" --cache-dir "cve_scan/bin/trivy_cache" --skip-db-update --skip-java-db-update --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${module_image}:${module_tag}"
               fi
-              trivy i --policy "${TRIVY_POLICY_URL}" --java-db-repository "${TRIVY_JAVA_DB_URL}" --db-repository "${TRIVY_DB_URL}" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format json --scanners vuln --output "${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "${module_image}:${module_tag}"
+              trivy i --policy "${TRIVY_POLICY_URL}" --cache-dir "cve_scan/bin/trivy_cache" --skip-db-update --skip-java-db-update --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format json --scanners vuln --output "${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "${module_image}:${module_tag}"
             else
               if [ "${TRIVY_REPORTS_LOG_OUTPUT}" != "false" ]; then
-                trivy i --policy "${TRIVY_POLICY_URL}" --java-db-repository "${TRIVY_JAVA_DB_URL}" --db-repository "${TRIVY_DB_URL}" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${module_image}@${IMAGE_HASH}"
+                trivy i --policy "${TRIVY_POLICY_URL}" --cache-dir "cve_scan/bin/trivy_cache" --skip-db-update --skip-java-db-update --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format table --scanners vuln --quiet "${module_image}@${IMAGE_HASH}"
               fi
-              trivy i --policy "${TRIVY_POLICY_URL}" --java-db-repository "${TRIVY_JAVA_DB_URL}" --db-repository "${TRIVY_DB_URL}" --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format json --scanners vuln --output "${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "${module_image}@${IMAGE_HASH}"
+              trivy i --policy "${TRIVY_POLICY_URL}" --cache-dir "cve_scan/bin/trivy_cache" --skip-db-update --skip-java-db-update --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format json --scanners vuln --output "${module_reports}/d8_${MODULE_NAME}_${IMAGE_NAME}_report.json" --quiet "${module_image}@${IMAGE_HASH}"
             fi
             echo "    Done"
             echo ""
