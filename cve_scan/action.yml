@@ -63,6 +63,8 @@ runs:
       env:
         TRIVY_BIN_VERSION: "v0.60.0"
         TRIVY_REPO_ID: "2181"
+        TRIVY_DB_URL: "${{inputs.prod_registry}}/deckhouse/ee/security/trivy-db:2"
+        TRIVY_JAVA_DB_URL: "${{inputs.prod_registry}}/deckhouse/ee/security/trivy-java-db:1"
         DECKHOUSE_PRIVATE_REPO: ${{inputs.deckhouse_private_repo}}
       run: |
         echo "Get Trivy"
@@ -86,8 +88,6 @@ runs:
         MODULE_NAME: "${{inputs.module_name}}"
         DD_URL: "${{inputs.dd_url}}"
         DD_TOKEN: "${{inputs.dd_token}}"
-        TRIVY_DB_URL: "${{inputs.prod_registry}}/deckhouse/ee/security/trivy-db:2"
-        TRIVY_JAVA_DB_URL: "${{inputs.prod_registry}}/deckhouse/ee/security/trivy-java-db:1"
         TRIVY_POLICY_URL: "${{inputs.prod_registry}}/deckhouse/ee/security/trivy-bdu:1"
         SCAN_SEVERAL_LASTEST_RELEASES: "${{inputs.scan_several_lastest_releases}}"
         LATEST_RELEASES_AMOUNT: "${{inputs.latest_releases_amount || '3'}}"
