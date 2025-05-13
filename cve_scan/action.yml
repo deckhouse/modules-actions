@@ -68,10 +68,9 @@ runs:
         echo "Get Trivy"
         echo "Trivy version: ${TRIVY_BIN_VERSION}"
         mkdir -p cve_scan/bin/trivy-${TRIVY_BIN_VERSION}
-        curl -s --fail-with-body https://${DECKHOUSE_PRIVATE_REPO}/api/v4/projects/${TRIVY_REPO_ID}/packages/generic/trivy-${TRIVY_BIN_VERSION}/${TRIVY_BIN_VERSION}/trivy -o bin/trivy-${TRIVY_BIN_VERSION}/trivy
+        curl -s --fail-with-body https://${DECKHOUSE_PRIVATE_REPO}/api/v4/projects/${TRIVY_REPO_ID}/packages/generic/trivy-${TRIVY_BIN_VERSION}/${TRIVY_BIN_VERSION}/trivy -o cve_scan/bin/trivy-${TRIVY_BIN_VERSION}/trivy
         chmod u+x cve_scan/bin/trivy-${TRIVY_BIN_VERSION}/trivy
         echo "${PWD}/cve_scan/bin/trivy-${TRIVY_BIN_VERSION}" >> $GITHUB_PATH
-        cve_scan/bin/trivy-${TRIVY_BIN_VERSION}/trivy clean --all
 
         echo "Updating Trivy Data Bases"
         mkdir -p "cve_scan/bin/trivy_cache"
