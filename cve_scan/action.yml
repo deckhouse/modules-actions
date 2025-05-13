@@ -95,7 +95,7 @@ runs:
         ln -s ${PWD}/${workdir}/bin/trivy-${TRIVY_BIN_VERSION}/trivy ${workdir}/bin/trivy
 
         echo "Updating Trivy Data Bases"
-        mkdir -p "cve_scan/bin/trivy_cache"
+        mkdir -p "${workdir}/bin/trivy_cache"
         ${workdir}/bin/trivy-${TRIVY_BIN_VERSION}/trivy image --download-db-only --db-repository "${TRIVY_DB_URL}" --cache-dir "${workdir}/bin/trivy_cache"
         ${workdir}/bin/trivy-${TRIVY_BIN_VERSION}/trivy image --download-java-db-only --java-db-repository "${TRIVY_JAVA_DB_URL}" --cache-dir "${workdir}/bin/trivy_cache"
         echo
