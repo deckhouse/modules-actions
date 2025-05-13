@@ -96,8 +96,8 @@ runs:
 
         echo "Updating Trivy Data Bases"
         mkdir -p "${workdir}/bin/trivy_cache"
-        ${workdir}/bin/trivy-${TRIVY_BIN_VERSION}/trivy image --download-db-only --db-repository "${TRIVY_DB_URL}" --cache-dir "${workdir}/bin/trivy_cache"
-        ${workdir}/bin/trivy-${TRIVY_BIN_VERSION}/trivy image --download-java-db-only --java-db-repository "${TRIVY_JAVA_DB_URL}" --cache-dir "${workdir}/bin/trivy_cache"
+        ${workdir}/bin/trivy image --download-db-only --db-repository "${TRIVY_DB_URL}" --cache-dir "${workdir}/bin/trivy_cache"
+        ${workdir}/bin/trivy image --download-java-db-only --java-db-repository "${TRIVY_JAVA_DB_URL}" --cache-dir "${workdir}/bin/trivy_cache"
         echo
         echo "======================================================="
         echo
