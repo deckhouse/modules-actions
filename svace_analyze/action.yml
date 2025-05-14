@@ -31,6 +31,7 @@ runs:
   steps:
     - name: Job started timestamp
       id: started_at
+      shell: bash
       run: |
         unixTimestamp=$(date +%s)
         echo "started_at=${unixTimestamp}" >> $GITHUB_OUTPUT  
@@ -42,6 +43,7 @@ runs:
           ${{ inputs.svace_analyze_ssh_private_key }}
 
     - name: Fill in ssh_known_hosts
+      shell: bash
       run: |
         IPS="${{inputs.svace_analyze_host}}"
 
