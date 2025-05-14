@@ -217,7 +217,7 @@ runs:
             info "Importing \"${project_name}\"..."
             response=$(send_request "${svacer_import}" $request_attempts)
             read import_task_id import_task_status <<< $(jq -r '(.task_id|tostring)+" "+.status' <<< ${response})
-            success "Import task scheduled succesfully. Task id: ${import_task_id}"
+            info "Import task scheduled succesfully. Task id: ${import_task_id}"
 
             get_import_log="curl --write-out \"\\n%{http_code}\" -sS --request GET \
             --url ${url}/api/public/svace/import/logs/${import_task_id} \
