@@ -263,7 +263,7 @@ runs:
 
             info "Start archiving module \"${module}\" image \"${image}\"..."
             send "cd ${proj} && tar -czf ${image}.tar.gz .svace-dir && rm -rf .svace-dir"
-            success "Archiving completed successfuly!"
+            info "Archiving completed successfuly!"
 
             info "Start importing module \"${module}\" image \"${image}\"..."
             upload_to_svacer "${module}/${image}" "${CI_COMMIT_REF_NAME}" "${proj}/${image}.tar.gz"
@@ -271,57 +271,6 @@ runs:
 
             info "Cleaning up imported artifacts..."
             send "rm -rf /${proj}"
-            success "Cleanup completed successfully"          
+            send "find /${SVACE_ANALYZE_DIR}/${CI_COMMIT_HASH} -type d -empty -delete"
+            info "Cleanup completed successfully"      
         done
-
-    - name: Cleanup Svace artifacts
-      if: ${{ always() }}
-      shell: bash
-      env:
-        SVACE_ANALYZE_HOST: "${{ inputs.svace_analyze_host }}"
-        SVACE_ANALYZE_SSH_USER: "${{ inputs.svace_analyze_ssh_user }}"
-        SVACE_ANALYZE_DIR: "svace-analyze"
-      run: |
-        set -e
-
-        # Define color codes
-        RED="\033[0;31m"   # Red for errors
-        YELLOW="\033[0;33m" # Yellow for warnings
-        GREEN="\033[0;32m"  # Green for success
-        BLUE="\033[0;34m"   # Blue for info
-        CYAN="\033[0;36m"   # Cyan fot datetime
-        NC="\033[0m"        # No color (reset)
-
-        error() { echo -e "${CYAN}$(date '+%Y-%m-%d %H:%M:%S') ${RED}ERROR: ${1}${NC}" >&2; }
-        warning() { echo -e "${CYAN}$(date '+%Y-%m-%d %H:%M:%S') ${YELLOW}WARNING: ${1}${NC}"; }
-        info() { echo -e "${CYAN}$(date '+%Y-%m-%d %H:%M:%S') ${BLUE}INFO: ${1}${NC}"; }
-        success() { echo -e "${CYAN}$(date '+%Y-%m-%d %H:%M:%S') ${GREEN}SUCCESS: ${1}${NC}"; }
-
-        send() {
-            # $1 - command to send
-            # $2 - retries count
-            local command="$1"
-            local retries="${2:-3}"
-            local attempt=0
-            local success=0
-            result=""
-
-            while [ "$attempt" -lt "$retries" ]; do
-                result=$(ssh ${SVACE_ANALYZE_SSH_USER}@${SVACE_ANALYZE_HOST} "${command}") && success=1 && break
-                error "Command failed. Retrying..."
-                attempt=$((attempt + 1))
-                sleep 2
-            done
-
-            if [ "$success" -eq 0 ]; then
-                error "All $retries attempts failed!"
-                return 1
-            else
-                echo "${result}"
-                return 0
-            fi
-        }
-
-        info "Cleanup analyzed artifacts..."
-        send "rm -rf /${SVACE_ANALYZE_DIR}/${CI_COMMIT_HASH}"
-        success "Cleanup completed successfully"
