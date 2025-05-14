@@ -71,6 +71,8 @@ runs:
         SVACER_URL: "${{ inputs.svacer_url }}"
         SVACER_IMPORT_USER: "${{ inputs.svacer_import_user }}"
         SVACER_IMPORT_PASSWORD: "${{ inputs.svacer_import_password }}"
+        CI_COMMIT_REF_NAME: ${{ inputs.ci_commit_ref_name }}
+        CI_COMMIT_HASH: ${{ inputs.ci_commit_hash }}
       shell: bash
       run: |
         echo "CI_COMMIT_REF_NAME: ${CI_COMMIT_REF_NAME}"
