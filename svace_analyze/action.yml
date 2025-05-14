@@ -254,7 +254,7 @@ runs:
 
 
         projects=$(send "{ for dir in /${SVACE_ANALYZE_DIR}/${CI_COMMIT_HASH}/*/*/; do echo \"\${dir%/}\"; done; }")
-        echo "${projects}"
+        info "${projects}"
 
         info "Starting svace analyze..."
         for proj in $projects; do
