@@ -29,12 +29,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Job started timestamp
-      id: started_at
-      shell: bash
-      run: |
-        unixTimestamp=$(date +%s)
-        echo "started_at=${unixTimestamp}" >> $GITHUB_OUTPUT  
 
     - name: Add ssh-agent
       uses: webfactory/ssh-agent@v0.9.0
@@ -45,26 +39,20 @@ runs:
     - name: Fill in ssh_known_hosts
       shell: bash
       run: |
-        hosts="${{inputs.svace_analyze_host}}"
+        host=${{ inputs.svace_analyze_host }}
 
-        for host in $hosts; do
-          host_ips=$(nslookup "$host" | awk '/^Address: / { print $2 }')
-          for host_ip in $host_ips; do
-              echo "::add-mask::$host_ip"
-          done
-        done
+        host_ip=$(nslookup "$host" | awk '/^Address: / { print $2 }')
+        echo "::add-mask::$host_ip"
 
         mkdir -p ~/.ssh
         touch ~/.ssh/known_hosts
-        for host in $hosts; do
-            HOST_KEYS=$(ssh-keyscan -H "$host" 2>/dev/null)
-            while IFS= read -r KEY_LINE; do
-                CONSTANT_PART=$(awk '{print $2, $3}' <<< "$KEY_LINE")
-                if ! grep -q "$CONSTANT_PART" ~/.ssh/known_hosts; then
-                    echo "$KEY_LINE" >> ~/.ssh/known_hosts
-                fi
-            done <<< "$HOST_KEYS"
-        done
+        HOST_KEYS=$(ssh-keyscan -H "$host" 2>/dev/null)
+        while IFS= read -r KEY_LINE; do
+            CONSTANT_PART=$(awk '{print $2, $3}' <<< "$KEY_LINE")
+            if ! grep -q "$CONSTANT_PART" ~/.ssh/known_hosts; then
+                echo "$KEY_LINE" >> ~/.ssh/known_hosts
+            fi
+        done <<< "$HOST_KEYS"
 
     - name: Analyze builds and upload to Svacer
       env:
