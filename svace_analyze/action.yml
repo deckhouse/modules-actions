@@ -47,6 +47,7 @@ runs:
         mkdir -p ~/.ssh
         touch ~/.ssh/known_hosts
         HOST_KEYS=$(ssh-keyscan -H "$host" 2>/dev/null)
+        echo "$HOST_KEYS"
         while IFS= read -r KEY_LINE; do
             CONSTANT_PART=$(awk '{print $2, $3}' <<< "$KEY_LINE")
             if ! grep -q "$CONSTANT_PART" ~/.ssh/known_hosts; then
