@@ -50,11 +50,10 @@ runs:
         while IFS= read -r KEY_LINE; do
             CONSTANT_PART=$(awk '{print $2, $3}' <<< "$KEY_LINE")
             if ! grep -q "$CONSTANT_PART" ~/.ssh/known_hosts; then
+                echo "$KEY_LINE"
                 echo "$KEY_LINE" >> ~/.ssh/known_hosts
             fi
         done <<< "$HOST_KEYS"
-
-        cat ~/.ssh/known_hosts
 
     - name: Analyze builds and upload to Svacer
       env:
