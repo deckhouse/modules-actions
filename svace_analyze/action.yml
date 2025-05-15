@@ -261,19 +261,27 @@ runs:
             read module image <<< "$(echo ${proj} | grep -oE '[^/]+/[^/]+$' | sed 's/\// /g')"
             [[ $image == "*" ]] && warning "Nothing to analyze in ${proj}" && echo "::warning file=$(realpath "$0")::Nothing to analyze" && exit 0
 
-            info "Start analyzing module \"${module}\" image \"${image}\"..."
-            send "svace analyze --quiet --svace-dir ${proj}"
-            success "Analysis completed successfully!"
+            if [[ -d "${proj}/.svace-dir" ]]; then
+              info "Start analyzing module \"${module}\" image \"${image}\"..."
+              send "svace analyze --quiet --svace-dir ${proj}"
+              success "Analysis completed successfully!"
 
-            info "Start archiving module \"${module}\" image \"${image}\"..."
-            send "cd ${proj} && tar -czf ${image}.tar.gz .svace-dir && rm -rf .svace-dir"
-            info "Archiving completed successfuly!"
+              info "Start archiving module \"${module}\" image \"${image}\"..."
+              send "cd ${proj} && tar -czf ${image}.tar.gz .svace-dir && rm -rf .svace-dir"
+              info "Archiving completed successfuly!"
+            else
+              warning "Nothing to analyze! Couldn't find \".svace-dir\" in \"${proj}\""
+            fi
 
-            info "Start importing module \"${module}\" image \"${image}\"..."
-            upload_to_svacer "${module}/${image}" "${CI_COMMIT_REF_NAME}" "${proj}/${image}.tar.gz"
-            success "Import completed successfuly!"
+            if [[ -f "${proj}/${image}.tar.gz" ]]; then
+              info "Start importing module \"${module}\" image \"${image}\"..."
+              upload_to_svacer "${module}/${image}" "${CI_COMMIT_REF_NAME}" "${proj}/${image}.tar.gz"
+              success "Import completed successfuly!"
+            else
+              warning "Nothing to import! Couldn't find \"${image}.tar.gz\" in \"${proj}\""
+            fi
 
-            info "Cleaning up imported artifacts..."
+            info "Cleaning up artifacts..."
             send "rm -rf /${proj}"
             send "find /${SVACE_ANALYZE_DIR}/${CI_COMMIT_HASH} -type d -empty -delete"
             info "Cleanup completed successfully"      
