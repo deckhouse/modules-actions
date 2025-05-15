@@ -54,6 +54,8 @@ runs:
             fi
         done <<< "$HOST_KEYS"
 
+        cat ~/.ssh/known_hosts
+
     - name: Analyze builds and upload to Svacer
       env:
         SVACE_ANALYZE_HOST: "${{ inputs.svace_analyze_host }}"
