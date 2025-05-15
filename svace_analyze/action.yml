@@ -45,15 +45,18 @@ runs:
     - name: Fill in ssh_known_hosts
       shell: bash
       run: |
-        IPS="${{inputs.svace_analyze_host}}"
+        hosts="${{inputs.svace_analyze_host}}"
 
-        for host_ip in $IPS; do
-            echo "::add-mask::$host_ip"
+        for host in $hosts; do
+          host_ips=$(nslookup "$host" | awk '/^Address: / { print $2 }')
+          for host_ip in $host_ips; do
+              echo "::add-mask::$host_ip"
+          done
         done
 
         mkdir -p ~/.ssh
         touch ~/.ssh/known_hosts
-        for host in $IPS; do
+        for host in $hosts; do
             HOST_KEYS=$(ssh-keyscan -H "$host" 2>/dev/null)
             while IFS= read -r KEY_LINE; do
                 CONSTANT_PART=$(awk '{print $2, $3}' <<< "$KEY_LINE")
