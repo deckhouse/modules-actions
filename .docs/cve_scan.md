@@ -29,14 +29,23 @@ severity - Optional. Vulnerabilities severity to scan. Default is: UNKNOWN,LOW,M
 ```
 tag - module image tag
 module_name - module name
+dd_url - URL to defectDojo
+dd_token - token of defectDojo to upload reports
+deckhouse_private_repo - url to private repo
+prod_registry - Must be deckhouse prod registry, used to get trivy databases and release images
+prod_registry_user - Username to log in to deckhouse prod registry
+prod_registry_password - Password to log in to deckhouse prod registry
+dev_registry - Must be deckhouse dev registry, used to get dev images
+dev_registry_user - Username to log in to deckhouse dev registry
+dev_registry_password - Password to log in to deckhouse dev registry
 ```
 #### Optional
 ```
-  scan_several_lastest_releases - true/false. Whether to scan last several releases or not. For scheduled pipelines override will not work as value is always true
-  latest_releases_amount - Number of latest minor releases to scan. Latest patch versions of latest N minor versions will be taken. Default is: 3
-  severity - Vulnerabilities severity to scan. Default is: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
-  module_prod_registry_custom_path - Module custom path in prod registry. Example: flant/modules
-  module_dev_registry_custom_path - Module custom path in dev registry. Example: flant/modules
+scan_several_lastest_releases - true/false. Whether to scan last several releases or not. For scheduled pipelines override will not work as value is always true
+latest_releases_amount - Number of latest minor releases to scan. Latest patch versions of latest N minor versions will be taken. Default is: 3
+severity - Vulnerabilities severity to scan. Default is: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+module_prod_registry_custom_path - Module custom path in prod registry. Example: flant/modules
+module_dev_registry_custom_path - Module custom path in dev registry. Example: flant/modules
 ```
 
 ### GitHub Masked variables
