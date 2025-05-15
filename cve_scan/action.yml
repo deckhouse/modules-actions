@@ -140,13 +140,13 @@ runs:
           dd_full_release_tag=""
           dd_image_version="${module_tag}"
           module_image="${DEV_REGISTRY_MODULE_BASEDIR}/${MODULE_NAME}"
-          trivy_registry_user="${DEV_REGISTRY_USER}"
-          trivy_registry_pass="${DEV_REGISTRY_PASSWORD}"
+          trivy_registry_user="${{inputs.dev_registry_user}}"
+          trivy_registry_pass="${{inputs.dev_registry_password}}"
           # If we are scanning release images - we need to redefine image path to prod registry
           if echo "${module_tag}" | grep -q "^v[0-9]*\.[0-9]*\.[0-9]*" && [[ "${{ github.event_name }}" != "pull_request" ]]; then
             module_image="${PROD_REGISTRY_MODULE_BASEDIR}/${MODULE_NAME}"
-            trivy_registry_user="${PROD_REGISTRY_USER}"
-            trivy_registry_pass="${PROD_REGISTRY_PASSWORD}"
+            trivy_registry_user="${{inputs.prod_registry_user}}"
+            trivy_registry_pass="${{inputs.prod_registry_password}}"
             dd_short_release_tag="release:$(echo ${module_tag} | cut -d '.' -f -2 | sed 's/^v//')"
             dd_full_release_tag="image_release_tag:${module_tag}"
             dd_image_version="$(echo ${dd_short_release_tag} | sed 's/^release\://')"
