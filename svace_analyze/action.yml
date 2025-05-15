@@ -47,14 +47,18 @@ runs:
         mkdir -p ~/.ssh
         touch ~/.ssh/known_hosts
         HOST_KEYS=$(ssh-keyscan -H "$host" 2>/dev/null)
-        echo "$HOST_KEYS"
+        echo -e "Host keys:\n$HOST_KEYS"
         while IFS= read -r KEY_LINE; do
             CONSTANT_PART=$(awk '{print $2, $3}' <<< "$KEY_LINE")
+            echo -e "Constant part:\n$CONSTANT_PART"
             if ! grep -q "$CONSTANT_PART" ~/.ssh/known_hosts; then
-                echo "$KEY_LINE"
+                echo -e "Key line:\n$KEY_LINE"
                 echo "$KEY_LINE" >> ~/.ssh/known_hosts
             fi
         done <<< "$HOST_KEYS"
+        
+        echo "Known hosts:"
+        cat ~/.ssh/known_hosts
 
     - name: Analyze builds and upload to Svacer
       env:
