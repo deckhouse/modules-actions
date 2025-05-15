@@ -264,7 +264,7 @@ runs:
             read module image <<< "$(echo ${proj} | grep -oE '[^/]+/[^/]+$' | sed 's/\// /g')"
             [[ $image == "*" ]] && warning "Nothing to analyze in ${proj}" && echo "::warning file=$(realpath "$0")::Nothing to analyze" && exit 0
 
-            if [[ -d "${proj}/.svace-dir" ]]; then
+            if [[ $(send "[[ -d ${proj}/.svace-dir ]] && echo true || echo false") == true ]]; then
               info "Start analyzing module \"${module}\" image \"${image}\"..."
               send "svace analyze --quiet --svace-dir ${proj}"
               success "Analysis completed successfully!"
@@ -276,7 +276,7 @@ runs:
               warning "Nothing to analyze! Couldn't find \".svace-dir\" in \"${proj}\""
             fi
 
-            if [[ -f "${proj}/${image}.tar.gz" ]]; then
+            if [[ $(send "[[ -f ${proj}/${image}.tar.gz ]] && echo true || echo false") == true ]]; then
               info "Start importing module \"${module}\" image \"${image}\"..."
               upload_to_svacer "${module}/${image}" "${CI_COMMIT_REF_NAME}" "${proj}/${image}.tar.gz"
               success "Import completed successfuly!"
@@ -285,7 +285,7 @@ runs:
             fi
 
             info "Cleaning up artifacts..."
-            send "rm -rf /${proj}"
-            send "find /${SVACE_ANALYZE_DIR}/${CI_COMMIT_HASH} -type d -empty -delete"
+            send "rm -rf ${proj}"
+            send "find /${SVACE_ANALYZE_DIR}/${CI_COMMIT_HASH} -maxdepth 2 -type d -empty -delete"
             info "Cleanup completed successfully"      
         done
