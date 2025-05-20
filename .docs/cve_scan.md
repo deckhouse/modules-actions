@@ -97,7 +97,7 @@ Put the following jobs into required place of you GitHub Action file (usually af
     needs: [build_dev]
     steps:
       - uses: actions/checkout@v4
-      - uses: deckhouse/modules-actions/cve_scan@chore/cve_scheduled_scan
+      - uses: deckhouse/modules-actions/cve_scan@v3
         with:
           tag: pr${{ github.event.number }}
           module_name: ${{ vars.MODULE_NAME }}
@@ -115,7 +115,7 @@ Put the following jobs into required place of you GitHub Action file (usually af
     name: Regular CVE scan
     steps:
       - uses: actions/checkout@v4
-      - uses: deckhouse/modules-actions/cve_scan@chore/cve_scheduled_scan
+      - uses: deckhouse/modules-actions/cve_scan@v3
         with:
           tag: ${{ github.event.inputs.release_branch || github.event.repository.default_branch }}
           module_name: ${{ vars.MODULE_NAME }}
