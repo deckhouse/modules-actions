@@ -7,8 +7,11 @@ inputs:
   ci_commit_hash:
     description: 'commit hash'
     required: true
+  project_group:
+    description: 'project group name for svacer import'
+    required: true
   svace_analyze_host:
-    description: 'ip address of the svace analyze vm'
+    description: 'hostname of the svace analyze vm'
     required: true
   svace_analyze_ssh_user:
     description: 'ssh user to connect with to svace analyze vm'
@@ -58,14 +61,15 @@ runs:
 
     - name: Analyze builds and upload to Svacer
       env:
+        PROJECT_GROUP: ${{ inputs.project_group }}
+        CI_COMMIT_REF_NAME: ${{ inputs.ci_commit_ref_name }}
+        CI_COMMIT_HASH: ${{ inputs.ci_commit_hash }}
         SVACE_ANALYZE_HOST: "${{ inputs.svace_analyze_host }}"
         SVACE_ANALYZE_SSH_USER: "${{ inputs.svace_analyze_ssh_user }}"
         SVACE_ANALYZE_DIR: "svace-analyze"
         SVACER_URL: "${{ inputs.svacer_url }}"
         SVACER_IMPORT_USER: "${{ inputs.svacer_import_user }}"
         SVACER_IMPORT_PASSWORD: "${{ inputs.svacer_import_password }}"
-        CI_COMMIT_REF_NAME: ${{ inputs.ci_commit_ref_name }}
-        CI_COMMIT_HASH: ${{ inputs.ci_commit_hash }}
       shell: bash
       run: |
         echo "CI_COMMIT_REF_NAME: ${CI_COMMIT_REF_NAME}"
@@ -205,6 +209,7 @@ runs:
             --form project=\"${project_name}\" \
             --form branch=\"${branch_name}\" \
             --form file=@\"${archive_name}\" \
+            --form options=\"--project-group ${PROJECT_GROUP}\" \
             --form options=\"--field CI_COMMIT_HASH:${CI_COMMIT_HASH}\""
 
             info "Importing \"${project_name}\"..."
@@ -245,33 +250,33 @@ runs:
             fi
         }
 
-
-        projects=$(send "{ for dir in /${SVACE_ANALYZE_DIR}/${CI_COMMIT_HASH}/*/*/; do echo \"\${dir%/}\"; done; }")
+        projects=$(send "find /${SVACE_ANALYZE_DIR}/${CI_COMMIT_HASH} \\( -type d -iname .svace-dir -o -iname *.tar.gz \\) -exec dirname {} \\;")
+        [[ -z $projects ]] && warning "Nothing to analyze in ${proj}" && echo "::warning file=$(realpath "$0")::Nothing to analyze" && exit 0
         info "${projects}"
 
         info "Starting svace analyze..."
         for proj in $projects; do
-            read module image <<< "$(echo ${proj} | grep -oE '[^/]+/[^/]+$' | sed 's/\// /g')"
-            [[ $image == "*" ]] && warning "Nothing to analyze in ${proj}" && echo "::warning file=$(realpath "$0")::Nothing to analyze" && exit 0
+            svacer_proj=${proj#/${SVACE_ANALYZE_DIR}/${CI_COMMIT_HASH}/}
+            build_item=${svacer_proj##*/}
 
             if [[ $(send "[[ -d ${proj}/.svace-dir ]] && echo true || echo false") == true ]]; then
-              info "Start analyzing module \"${module}\" image \"${image}\"..."
-              send "svace analyze --quiet --svace-dir ${proj}"
-              success "Analysis completed successfully!"
+                info "Start analyzing project \"${svacer_proj}\" ..."
+                send "svace analyze --quiet --svace-dir ${proj}"
+                success "Analysis completed successfully!"
 
-              info "Start archiving module \"${module}\" image \"${image}\"..."
-              send "cd ${proj} && tar -czf ${image}.tar.gz .svace-dir && rm -rf .svace-dir"
-              info "Archiving completed successfuly!"
+                info "Start archiving project \"${svacer_proj}\" ..."
+                send "cd ${proj} && tar -czf ${build_item}.tar.gz .svace-dir && rm -rf .svace-dir"
+                info "Archiving completed successfuly!"
             else
-              warning "Nothing to analyze! Couldn't find \".svace-dir\" in \"${proj}\""
+                warning "Nothing to analyze! Couldn't find \".svace-dir\" in \"${proj}\""
             fi
 
-            if [[ $(send "[[ -f ${proj}/${image}.tar.gz ]] && echo true || echo false") == true ]]; then
-              info "Start importing module \"${module}\" image \"${image}\"..."
-              upload_to_svacer "${module}/${image}" "${CI_COMMIT_REF_NAME}" "${proj}/${image}.tar.gz"
-              success "Import completed successfuly!"
+            if [[ $(send "[[ -f ${proj}/${build_item}.tar.gz ]] && echo true || echo false") == true ]]; then
+                info "Start importing project \"${svacer_proj}\" ..."
+                upload_to_svacer "${svacer_proj}" "${CI_COMMIT_REF_NAME}" "${proj}/${build_item}.tar.gz"
+                success "Import completed successfuly!"
             else
-              warning "Nothing to import! Couldn't find \"${image}.tar.gz\" in \"${proj}\""
+                warning "Nothing to import! Couldn't find \"${build_item}.tar.gz\" in \"${proj}\""
             fi
 
             info "Cleaning up artifacts..."
