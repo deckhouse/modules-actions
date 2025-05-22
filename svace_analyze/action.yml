@@ -7,9 +7,6 @@ inputs:
   ci_commit_hash:
     description: 'commit hash'
     required: true
-  project_group:
-    description: 'project group name for svacer import'
-    required: true
   svace_analyze_host:
     description: 'hostname of the svace analyze vm'
     required: true
@@ -28,6 +25,15 @@ inputs:
   svace_analyze_ssh_private_key:
     description: 'svacer import user password'
     required: true
+  project_group:
+    description: 'project group name for svacer import'
+    required: false
+  if_no_group:
+    description: 'action '
+    required: false
+  skip_unreachable_procedure_analysis:
+    description: 'project group name for svacer import'
+    required: false
 
 runs:
   using: "composite"
@@ -61,7 +67,6 @@ runs:
 
     - name: Analyze builds and upload to Svacer
       env:
-        PROJECT_GROUP: ${{ inputs.project_group }}
         CI_COMMIT_REF_NAME: ${{ inputs.ci_commit_ref_name }}
         CI_COMMIT_HASH: ${{ inputs.ci_commit_hash }}
         SVACE_ANALYZE_HOST: "${{ inputs.svace_analyze_host }}"
@@ -70,12 +75,22 @@ runs:
         SVACER_URL: "${{ inputs.svacer_url }}"
         SVACER_IMPORT_USER: "${{ inputs.svacer_import_user }}"
         SVACER_IMPORT_PASSWORD: "${{ inputs.svacer_import_password }}"
+        PROJECT_GROUP: ${{ inputs.project_group }}
+        IF_NO_GROUP: ${{ inputs.if_no_group }}
+        SKIP_UNREACHABLE_PROCEDURE_ANALYSIS: ${{ inputs.skip_unreachable_procedure_analysis }}
       shell: bash
       run: |
         echo "CI_COMMIT_REF_NAME: ${CI_COMMIT_REF_NAME}"
         echo "CI_COMMIT_HASH: ${CI_COMMIT_HASH}"
 
         set -e
+
+        # Define anlysis options
+        SKIP_UNREACHABLE_PROCEDURE_ANALYSIS=${SKIP_UNREACHABLE_PROCEDURE_ANALYSIS:-"deps"}
+
+        # Define import options
+        PROJECT_GROUP=${PROJECT_GROUP:-"Unspecified"}
+        IF_NO_GROUP=${IF_NO_GROUP:-"add"}
         
         # Define color codes
         RED="\033[0;31m"   # Red for errors
@@ -210,6 +225,7 @@ runs:
             --form branch=\"${branch_name}\" \
             --form file=@\"${archive_name}\" \
             --form options=\"--project-group ${PROJECT_GROUP}\" \
+            --form options=\"--if-no-group ${IF_NO_GROUP}\" \
             --form options=\"--field CI_COMMIT_HASH:${CI_COMMIT_HASH}\""
 
             info "Importing \"${project_name}\"..."
@@ -261,7 +277,7 @@ runs:
 
             if [[ $(send "[[ -d ${proj}/.svace-dir ]] && echo true || echo false") == true ]]; then
                 info "Start analyzing project \"${svacer_proj}\" ..."
-                send "svace analyze --quiet --svace-dir ${proj}"
+                send "svace analyze --set-config SKIP_UNREACHABLE_PROCEDURE_ANALYSIS=${SKIP_UNREACHABLE_PROCEDURE_ANALYSIS} --quiet --svace-dir ${proj}"
                 success "Analysis completed successfully!"
 
                 info "Start archiving project \"${svacer_proj}\" ..."
