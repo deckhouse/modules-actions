@@ -277,7 +277,8 @@ runs:
 
             if [[ $(send "[[ -d ${proj}/.svace-dir ]] && echo true || echo false") == true ]]; then
                 info "Start analyzing project \"${svacer_proj}\" ..."
-                send "svace analyze --set-config SKIP_UNREACHABLE_PROCEDURE_ANALYSIS=${SKIP_UNREACHABLE_PROCEDURE_ANALYSIS} --quiet --svace-dir ${proj}"
+                send "svace config --svace-dir ${proj} THREAD_NUMBER auto"
+                send "svace analyze --set-config SKIP_UNREACHABLE_PROCEDURE_ANALYSIS=${SKIP_UNREACHABLE_PROCEDURE_ANALYSIS} --quiet --memory 4096 --svace-dir ${proj}"
                 success "Analysis completed successfully!"
 
                 info "Start archiving project \"${svacer_proj}\" ..."
