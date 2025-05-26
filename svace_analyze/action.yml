@@ -148,7 +148,7 @@ runs:
             local token_response=""
             result=""
 
-            get_token="curl --write-out \"\\n%{http_code}\" -sS --request POST \
+            get_token="curl --write-out \"\\n%{http_code}\" -sSL --request POST \
             --url ${url}/api/public/login \
             --header 'User-Agent: Curl' \
             --header 'content-type: application/json' \
@@ -217,7 +217,7 @@ runs:
             local success=0
             local response=""
 
-            svacer_import="curl --write-out \"\\n%{http_code}\" -sS --request POST \
+            svacer_import="curl --write-out \"\\n%{http_code}\" -sSL --request POST \
             --url ${url}/api/public/svace/import\\?async\\=true \
             --header 'User-Agent: Curl' \
             --header 'content-type: multipart/form-data' \
@@ -233,7 +233,7 @@ runs:
             read import_task_id import_task_status <<< $(jq -r '(.task_id|tostring)+" "+.status' <<< ${response})
             info "Import task scheduled succesfully. Task id: ${import_task_id}"
 
-            get_import_log="curl --write-out \"\\n%{http_code}\" -sS --request GET \
+            get_import_log="curl --write-out \"\\n%{http_code}\" -sSL --request GET \
             --url ${url}/api/public/svace/import/logs/${import_task_id} \
             --header 'User-Agent: Curl'"
 
