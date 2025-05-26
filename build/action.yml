@@ -14,15 +14,44 @@ inputs:
     description: 'A boolean value which indicates whether svace analyze will be performed'
     required: false
   svace_analyze_host:
-    description: 'ip address of the svace analyze vm'
+    description: 'fqdn address to the svace analyze vm'
     required: false
   svace_analyze_ssh_user:
     description: 'ssh user to connect with to svace analyze vm'
+    required: false
+  svace_analyze_ssh_private_key:
+    description: 'svace analyze server ssh private key secret'
     required: false
 
 runs:
   using: "composite"
   steps:
+      - name: Start ssh-agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.SVACE_ANALYZE_SSH_PRIVATE_KEY }}
+
+    - name: Fill in ssh_known_hosts
+      shell: bash
+      run: |
+        host=${{ inputs.svace_analyze_host }}
+
+        host_ip=$(nslookup "$host" | awk '/^Address: / { print $2 }')
+        echo "::add-mask::$host_ip"
+
+        mkdir -p ~/.ssh
+        touch ~/.ssh/known_hosts
+        HOST_KEYS=$(ssh-keyscan -H "$host" 2>/dev/null)
+        while IFS= read -r KEY_LINE; do
+            CONSTANT_PART=$(awk '{print $2, $3}' <<< "$KEY_LINE")
+            if grep -q "$CONSTANT_PART" ~/.ssh/known_hosts; then
+                ssh-keygen -R $host
+                ssh-keygen -R $host_ip
+            fi
+            echo "$KEY_LINE" >> ~/.ssh/known_hosts
+        done <<< "$HOST_KEYS"            
+
     - name: Build dependency images
       shell: bash
       run: |
