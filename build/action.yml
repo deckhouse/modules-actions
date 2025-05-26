@@ -27,11 +27,13 @@ runs:
   using: "composite"
   steps:
     - name: Start ssh-agent
+      if: ${{ github.event.inputs.svace_enabled == 'true' }}
       uses: webfactory/ssh-agent@v0.9.0
       with:
         ssh-private-key: "${{ inputs.svace_analyze_ssh_private_key }}"
 
     - name: Fill in ssh_known_hosts
+      if: ${{ github.event.inputs.svace_enabled == 'true' }}
       shell: bash
       run: |
         host=${{ inputs.svace_analyze_host }}
