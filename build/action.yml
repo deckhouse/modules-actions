@@ -10,6 +10,9 @@ inputs:
   module_tag:
     description: 'The version of the module to deploy to release channel, e.g., v1.21.1'
     required: true
+  secondary_repo:
+    description: 'Secondary repository address for module, e.g., registry.example.com/module-source/module_name'
+    required: false
   svace_enabled:
     description: 'A boolean value which indicates whether svace analyze will be performed'
     required: false
@@ -23,6 +26,10 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Set secondary repo if input exists
+      shell: bash
+      if: ${{ inputs.secondary_repo != '' }}
+      run: echo "WERF_SECONDARY_REPO_1=${{ inputs.secondary_repo }}" >> $GITHUB_ENV
 
     - name: Build dependency images
       shell: bash
