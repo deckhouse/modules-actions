@@ -10,10 +10,20 @@ inputs:
   module_tag:
     description: 'The version of the module to deploy to release channel, e.g., v1.21.1'
     required: true
+  svace_enabled:
+    description: 'A boolean value which indicates whether svace analyze will be performed'
+    required: false
+  svace_analyze_host:
+    description: 'fqdn address to the svace analyze vm'
+    required: false
+  svace_analyze_ssh_user:
+    description: 'ssh user to connect with to svace analyze vm'
+    required: false
 
 runs:
   using: "composite"
   steps:
+
     - name: Build dependency images
       shell: bash
       run: |
@@ -21,6 +31,9 @@ runs:
         werf build --repo=${{ inputs.module_source }}/${{ inputs.module_name }} --save-build-report --build-report-path images_tags_werf.json
       env:
         MODULES_MODULE_TAG: ${{ inputs.module_tag }}
+        SVACE_ANALYZE_HOST: "${{ inputs.svace_analyze_host }}"
+        SVACE_ANALYZE_SSH_USER: "${{ inputs.svace_analyze_ssh_user }}"
+        SVACE_ENABLED: "${{ inputs.svace_enabled }}"    
 
     - name: Bundle the module image
       shell: bash
