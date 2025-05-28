@@ -21,7 +21,7 @@ inputs:
     required: false
   svace_analyze_ssh_user:
     description: 'ssh user to connect with to svace analyze vm'
-
+    required: false
 
 runs:
   using: "composite"
