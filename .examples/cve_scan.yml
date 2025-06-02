@@ -36,11 +36,11 @@ jobs:
           module_name: ${{ vars.MODULE_NAME }}
           dd_url: ${{ secrets.DEFECTDOJO_HOST }}
           dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
-          prod_registry: ${{ vars.PROD_READ_REGISTRY }}
+          prod_registry: ${{ secrets.PROD_READ_REGISTRY }}
           prod_registry_user: ${{ secrets.PROD_READ_REGISTRY_LOGIN }}
           prod_registry_password: ${{ secrets.PROD_READ_REGISTRY_PASSWORD }}
-          dev_registry: ${{ vars.DEV_REGISTRY }}
-          dev_registry_user: ${{ vars.DEV_REGISTRY_LOGIN }}
+          dev_registry: ${{ secrets.DEV_REGISTRY }}
+          dev_registry_user: ${{ secrets.DEV_REGISTRY_LOGIN }}
           dev_registry_password: ${{ secrets.DEV_REGISTRY_PASSWORD }}
           deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
           severity: "HIGH,CRITICAL"
@@ -56,11 +56,11 @@ jobs:
           module_name: ${{ vars.MODULE_NAME }}
           dd_url: ${{ secrets.DEFECTDOJO_HOST }}
           dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
-          prod_registry: ${{ vars.PROD_READ_REGISTRY }}
+          prod_registry: ${{ secrets.PROD_READ_REGISTRY }}
           prod_registry_user: ${{ secrets.PROD_READ_REGISTRY_LOGIN }}
           prod_registry_password: ${{ secrets.PROD_READ_REGISTRY_PASSWORD }}
-          dev_registry: ${{ vars.DEV_REGISTRY }}
-          dev_registry_user: ${{ vars.DEV_REGISTRY_LOGIN }}
+          dev_registry: ${{ secrets.DEV_REGISTRY }}
+          dev_registry_user: ${{ secrets.DEV_REGISTRY_LOGIN }}
           dev_registry_password: ${{ secrets.DEV_REGISTRY_PASSWORD }}
           deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
           scan_several_lastest_releases: ${{ github.event.inputs.scan_several_lastest_releases }}
