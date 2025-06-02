@@ -136,12 +136,16 @@ runs:
         echo "${module_tags[*]}"
         # Scan in loop for provided list of tags
         for module_tag in ${module_tags[*]}; do
+          dd_default_branch_tag=""
           dd_short_release_tag=""
           dd_full_release_tag=""
           dd_image_version="${module_tag}"
           module_image="${DEV_REGISTRY_MODULE_BASEDIR}/${MODULE_NAME}"
           trivy_registry_user="${{inputs.dev_registry_user}}"
           trivy_registry_pass="${{inputs.dev_registry_password}}"
+          if [ "${module_tag}" == "${{ github.event.repository.default_branch }}" ]; then
+            dd_default_branch_tag="default_branch"
+          fi
           # If we are scanning release images - we need to redefine image path to prod registry
           if echo "${module_tag}" | grep -q "^v[0-9]*\.[0-9]*\.[0-9]*" && [[ "${{ github.event_name }}" != "pull_request" ]]; then
             module_image="${PROD_REGISTRY_MODULE_BASEDIR}/${MODULE_NAME}"
@@ -224,7 +228,7 @@ runs:
               -F "service=${MODULE_NAME} / ${IMAGE_NAME}" \
               -F "group_by=component_name+component_version" \
               -F "deduplication_on_engagement=false" \
-              -F "tags=deckhouse_module,module:${MODULE_NAME},image:${IMAGE_NAME},branch:${module_tag},${dd_short_release_tag},${dd_full_release_tag}" \
+              -F "tags=deckhouse_module,module:${MODULE_NAME},image:${IMAGE_NAME},branch:${module_tag},${dd_short_release_tag},${dd_full_release_tag},${dd_default_branch_tag}" \
               -F "test_title=[${MODULE_NAME}]: ${IMAGE_NAME}:${module_tag}" \
               -F "version=${dd_image_version}" \
               -F "build_id=${IMAGE_HASH}" \
