@@ -106,8 +106,8 @@ Put the following jobs into required place of you GitHub Action file (usually af
           prod_registry: ${{ secrets.PROD_READ_REGISTRY }}
           prod_registry_user: ${{ secrets.PROD_MODULES_READ_REGISTRY_USER }}
           prod_registry_password: ${{ secrets.PROD_MODULES_READ_REGISTRY_PASSWORD }}
-          dev_registry: ${{ vars.DEV_REGISTRY }}
-          dev_registry_user: ${{ vars.DEV_MODULES_REGISTRY_USER }}
+          dev_registry: ${{ secrets.DEV_REGISTRY }}
+          dev_registry_user: ${{ secrets.DEV_MODULES_REGISTRY_USER }}
           dev_registry_password: ${{ secrets.DEV_MODULES_REGISTRY_PASSWORD }}
           deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
   cve_scan:
@@ -124,8 +124,8 @@ Put the following jobs into required place of you GitHub Action file (usually af
           prod_registry: ${{ secrets.PROD_READ_REGISTRY }}
           prod_registry_user: ${{ secrets.PROD_MODULES_READ_REGISTRY_USER }}
           prod_registry_password: ${{ secrets.PROD_MODULES_READ_REGISTRY_PASSWORD }}
-          dev_registry: ${{ vars.DEV_REGISTRY }}
-          dev_registry_user: ${{ vars.DEV_MODULES_REGISTRY_USER }}
+          dev_registry: ${{ secrets.DEV_REGISTRY }}
+          dev_registry_user: ${{ secrets.DEV_MODULES_REGISTRY_USER }}
           dev_registry_password: ${{ secrets.DEV_MODULES_REGISTRY_PASSWORD }}
           deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
           scan_several_lastest_releases: ${{ github.event.inputs.scan_several_lastest_releases }}
