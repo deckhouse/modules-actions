@@ -1,38 +1,39 @@
 on:
   workflow_dispatch:
-    ci_commit_ref_name:
-      description: 'branch or tag name'
-      required: true
-    ci_commit_hash:
-      description: 'commit hash'
-      required: true
-    svace_analyze_host:
-      description: 'hostname of the svace analyze vm'
-      required: true
-    svace_analyze_ssh_user:
-      description: 'ssh user to connect with to svace analyze vm'
-      required: true
-    svacer_url:
-      description: 'url to svacer server'
-      required: true
-    svacer_import_user:
-      description: 'user to import with analyzing results to svacer server'
-      required: true
-    svacer_import_password:
-      description: 'svacer import user password'
-      required: true
-    svace_analyze_ssh_private_key:
-      description: 'svacer import user password'
-      required: true
-    project_group:
-      description: 'project group name for svacer import'
-      required: false
-    if_no_group:
-      description: 'action '
-      required: false
-    skip_unreachable_procedure_analysis:
-      description: 'project group name for svacer import'
-      required: false
+    inputs:
+      ci_commit_ref_name:
+        description: 'branch or tag name'
+        required: true
+      ci_commit_hash:
+        description: 'commit hash'
+        required: true
+      svace_analyze_host:
+        description: 'hostname of the svace analyze vm'
+        required: true
+      svace_analyze_ssh_user:
+        description: 'ssh user to connect with to svace analyze vm'
+        required: true
+      svacer_url:
+        description: 'url to svacer server'
+        required: true
+      svacer_import_user:
+        description: 'user to import with analyzing results to svacer server'
+        required: true
+      svacer_import_password:
+        description: 'svacer import user password'
+        required: true
+      svace_analyze_ssh_private_key:
+        description: 'svace analyze server ssh private key'
+        required: true
+      project_group:
+        description: 'project group name for svacer import'
+        required: false
+      if_no_group:
+        description: 'action to be performed if no project group is specified'
+        required: false
+      skip_unreachable_procedure_analysis:
+        description: 'exclusion procedure option'
+        required: false
 
 ## NOTE: to perform static analysis sources must be built using svace build and uploaded to svace analyze server to the correct location preserving strict directory hierarchy
 jobs:
