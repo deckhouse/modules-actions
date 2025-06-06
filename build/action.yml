@@ -22,6 +22,15 @@ inputs:
   svace_analyze_ssh_user:
     description: 'ssh user to connect with to svace analyze vm'
     required: false
+  svace_analyze_ssh_key:
+    description: "SSH private key for the svace analyze server"
+    required: false
+  source_repo:
+    description: "Source repository address for the module"
+    required: false
+  source_repo_ssh_key:
+    description: "SSH private key for the source repository"
+    required: false
 
 runs:
   using: "composite"
@@ -30,6 +39,74 @@ runs:
       shell: bash
       if: ${{ inputs.secondary_repo != '' }}
       run: echo "WERF_SECONDARY_REPO_1=${{ inputs.secondary_repo }}" >> $GITHUB_ENV
+
+    - name: Prepare ssh-agent
+      if: ${{ inputs.source_repo_ssh_key != '' || inputs.svace_analyze_ssh_key != '' }}
+      shell: bash
+      run: |
+        if [[ -n "${SSH_AUTH_SOCK}" && -n "${SSH_AGENT_PID}" ]]; then
+            eval "$(ssh-agent -s)" > /dev/null
+            trap "kill -3 ${SSH_AGENT_PID}" ERR EXIT HUP INT QUIT TERM ABRT
+        else
+            INIT_SSH_AUTH_SOCK="${SSH_AUTH_SOCK}"
+            INIT_SSH_AGENT_PID="${SSH_AGENT_PID}"
+            eval "$(ssh-agent -s)" > /dev/null
+            trap "export SSH_AUTH_SOCK=\"${INIT_SSH_AUTH_SOCK}\" SSH_AGENT_PID=\"${INIT_SSH_AGENT_PID}\"; kill -3 ${SSH_AGENT_PID}" ERR EXIT HUP INT QUIT TERM
+        fi
+        mkdir -p ~/.ssh
+        touch ~/.ssh/known_hosts
+
+    - name: Add source repo key
+      if: ${{ inputs.source_repo_ssh_key != '' && inputs.source_repo != '' }}
+      shell: bash
+      env:
+        SOURCE_REPO: ${{ inputs.source_repo }}
+        SOURCE_REPO_SSH_KEY: ${{ inputs.source_repo_ssh_key }}
+      run: |
+          echo "::add-mask::${SOURCE_REPO_SSH_KEY}"
+          ssh-add - <<< "${SOURCE_REPO_SSH_KEY}"
+
+          HOST=$(grep -oP '(?<=@)[^/:]+' <<< "${SOURCE_REPO}")
+          echo "::add-mask::$HOST"
+          IPS=$(nslookup "$HOST" | awk '/^Address: / { print $2 }')
+          for IP in $IPS; do
+            echo "::add-mask::$IP"
+          done
+
+          HOST_KEYS=$(ssh-keyscan -H "$HOST" 2>/dev/null)
+          while IFS= read -r KEY_LINE; do
+            CONSTANT_PART=$(awk '{print $2, $3}' <<< "$KEY_LINE")
+            if grep -q "$CONSTANT_PART" ~/.ssh/known_hosts; then
+                ssh-keygen -R $host
+            fi
+            echo "$KEY_LINE" >> ~/.ssh/known_hosts
+          done <<< "$HOST_KEYS"
+
+    - name: Add svace analyze server key
+      if: ${{ inputs.svace_analyze_ssh_key != '' && inputs.svace_analyze_host != '' }}
+      shell: bash
+      env:
+        SVACE_ANALYZE_HOST: ${{ inputs.svace_analyze_host }}
+        SVACE_ANALYZE_SSH_KEY: ${{ inputs.svace_analyze_ssh_key }}
+      run: |
+        echo "::add-mask::${SVACE_ANALYZE_SSH_KEY}"
+        ssh-add - <<< "${SVACE_ANALYZE_SSH_KEY}"
+
+        HOST="${SVACE_ANALYZE_HOST}"
+        echo "::add-mask::$HOST"
+        IPS=$(nslookup "$HOST" | awk '/^Address: / { print $2 }')
+        for IP in $IPS; do
+          echo "::add-mask::$IP"
+        done
+
+        HOST_KEYS=$(ssh-keyscan -H "$HOST" 2>/dev/null)
+        while IFS= read -r KEY_LINE; do
+          CONSTANT_PART=$(awk '{print $2, $3}' <<< "$KEY_LINE")
+          if grep -q "$CONSTANT_PART" ~/.ssh/known_hosts; then
+              ssh-keygen -R $host
+          fi
+          echo "$KEY_LINE" >> ~/.ssh/known_hosts
+        done <<< "$HOST_KEYS"
 
     - name: Build dependency images
       shell: bash
@@ -40,7 +117,7 @@ runs:
         MODULES_MODULE_TAG: ${{ inputs.module_tag }}
         SVACE_ANALYZE_HOST: "${{ inputs.svace_analyze_host }}"
         SVACE_ANALYZE_SSH_USER: "${{ inputs.svace_analyze_ssh_user }}"
-        SVACE_ENABLED: "${{ inputs.svace_enabled }}"    
+        SVACE_ENABLED: "${{ inputs.svace_enabled }}"
 
     - name: Bundle the module image
       shell: bash
