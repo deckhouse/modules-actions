@@ -43,21 +43,26 @@ runs:
     - name: Prepare ssh-agent
       if: ${{ inputs.source_repo_ssh_key != '' || inputs.svace_analyze_ssh_key != '' }}
       shell: bash
+      id: ssh_agent
       run: |
         if [[ -n "${SSH_AUTH_SOCK}" && -n "${SSH_AGENT_PID}" ]]; then
+            echo "Existed ssh agent pid: ${SSH_AGENT_PID}"
+            echo "Existed ssh auth sock: ${SSH_AUTH_SOCK}"
+            echo "INIT_SSH_AGENT_PID=${SSH_AGENT_PID}" >> $GITHUB_OUTPUT
+            echo "INIT_SSH_AUTH_SOCK=${SSH_AUTH_SOCK}" >> $GITHUB_OUTPUT
             eval "$(ssh-agent -s)" > /dev/null
-            trap "kill -3 ${SSH_AGENT_PID}" ERR EXIT HUP INT QUIT TERM ABRT
         else
-            INIT_SSH_AUTH_SOCK="${SSH_AUTH_SOCK}"
-            INIT_SSH_AGENT_PID="${SSH_AGENT_PID}"
             eval "$(ssh-agent -s)" > /dev/null
-            trap "export SSH_AUTH_SOCK=\"${INIT_SSH_AUTH_SOCK}\" SSH_AGENT_PID=\"${INIT_SSH_AGENT_PID}\"; kill -3 ${SSH_AGENT_PID}" ERR EXIT HUP INT QUIT TERM
         fi
         mkdir -p ~/.ssh
         touch ~/.ssh/known_hosts
+        echo "New ssh agent pid: ${SSH_AGENT_PID}"
+        echo "New ssh auth sock: ${SSH_AUTH_SOCK}"
+        echo "SSH_AGENT_PID=${SSH_AGENT_PID}" >> $GITHUB_ENV
+        echo "SSH_AUTH_SOCK=${SSH_AUTH_SOCK}" >> $GITHUB_ENV
 
     - name: Add source repo key
-      if: ${{ inputs.source_repo_ssh_key != '' && inputs.source_repo != '' }}
+      if: ${{ inputs.source_repo_ssh_key != '' && inputs.source_repo != '' && steps.ssh_agent.outcome != 'skipped' }}
       shell: bash
       env:
         SOURCE_REPO: ${{ inputs.source_repo }}
@@ -77,13 +82,13 @@ runs:
           while IFS= read -r KEY_LINE; do
             CONSTANT_PART=$(awk '{print $2, $3}' <<< "$KEY_LINE")
             if grep -q "$CONSTANT_PART" ~/.ssh/known_hosts; then
-                ssh-keygen -R $host
+                ssh-keygen -R $HOST
             fi
             echo "$KEY_LINE" >> ~/.ssh/known_hosts
           done <<< "$HOST_KEYS"
 
     - name: Add svace analyze server key
-      if: ${{ inputs.svace_analyze_ssh_key != '' && inputs.svace_analyze_host != '' }}
+      if: ${{ inputs.svace_analyze_ssh_key != '' && inputs.svace_analyze_host != '' && steps.ssh_agent.outcome != 'skipped' }}
       shell: bash
       env:
         SVACE_ANALYZE_HOST: ${{ inputs.svace_analyze_host }}
@@ -103,12 +108,13 @@ runs:
         while IFS= read -r KEY_LINE; do
           CONSTANT_PART=$(awk '{print $2, $3}' <<< "$KEY_LINE")
           if grep -q "$CONSTANT_PART" ~/.ssh/known_hosts; then
-              ssh-keygen -R $host
+              ssh-keygen -R $HOST
           fi
           echo "$KEY_LINE" >> ~/.ssh/known_hosts
         done <<< "$HOST_KEYS"
 
     - name: Build dependency images
+      id: build
       shell: bash
       run: |
         source "$(werf ci-env github --as-file)"
@@ -118,6 +124,14 @@ runs:
         SVACE_ANALYZE_HOST: "${{ inputs.svace_analyze_host }}"
         SVACE_ANALYZE_SSH_USER: "${{ inputs.svace_analyze_ssh_user }}"
         SVACE_ENABLED: "${{ inputs.svace_enabled }}"
+
+    - name: Cleanup ssh-agent
+      if: ${{ steps.ssh_agent.outcome != 'skipped' && always() }}
+      shell: bash
+      run: |
+        echo "Killing ssh agent pid: ${SSH_AGENT_PID}"
+        kill -3 ${SSH_AGENT_PID}
+        echo "Initial ssh agent pid: ${{ steps.ssh_agent.outputs.INIT_SSH_AGENT_PID }}"
 
     - name: Bundle the module image
       shell: bash
