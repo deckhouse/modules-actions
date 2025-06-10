@@ -24,6 +24,9 @@ jobs:
           module_source: registry.deckhouse.io/deckhouse/ce/modules
           module_name: everything-controller
           module_tag: ${{ github.ref_name }}
+          source_repo: ${{ secrets.SOURCE_REPO }}
+          source_repo_ssh_key: ${{ secrets.SOURCE_REPO_SSH_KEY }}
           svace_enabled: ${{ github.event.inputs.svace_enabled || contains(github.event.pull_request.labels.*.name, 'analyze/svace') }}
           svace_analyze_host: "${{ secrets.SVACE_ANALYZE_HOST }}"
           svace_analyze_ssh_user: "${{ secrets.SVACE_ANALYZE_SSH_USER }}"
+          svace_analyze_ssh_key: "${{ secrets.SVACE_ANALYZE_SSH_PRIVATE_KEY }}"
