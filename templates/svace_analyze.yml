@@ -1,0 +1,12 @@
+spec:
+  inputs:
+    svace_analyze_host:
+      description: 'hostname of the svace analyze vm'
+
+
+---
+
+.svace_analyze:
+  script:
+    - |
+      echo "Placeholder for svace analyze. Your input: $[[ inputs.svace_analyze_host ]]"
