@@ -38,7 +38,7 @@ runs:
             
             cd "$dir" || continue
             
-            go list -m all | grep deckhouse || true | grep -v '=>' | while IFS= read -r line; do
+            go list -m all | grep deckhouse || true | grep -v '=>' | grep -v 'v0.0.0' | while IFS= read -r line; do
               module_name=$(echo "$line" | awk '{print $1}')
               module_version=$(echo "$line" | awk '{print $2}')
 
