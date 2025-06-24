@@ -88,17 +88,17 @@ runs:
         {
                 "auths": {
                         "${{inputs.prod_registry}}": {
-                                "auth": "$(echo "${{inputs.prod_registry_user}}:${{inputs.prod_registry_password}}" | base64)"
+                                "auth": "$(echo -n "${{inputs.prod_registry_user}}:${{inputs.prod_registry_password}}" | base64)"
                         },
                         {
                         "${{inputs.dev_registry}}": {
-                                "auth": "$(echo "${{inputs.dev_registry_user}}:${{inputs.dev_registry_password}}" | base64)"
+                                "auth": "$(echo -n "${{inputs.dev_registry_user}}:${{inputs.dev_registry_password}}" | base64)"
                         }
                 }
         }
         EOL
-        echo docker login ${{inputs.prod_registry}}
-        echo docker login ${{inputs.dev_registry}}
+        echo docker login "${{inputs.prod_registry}}"
+        echo docker login "${{inputs.dev_registry}}"
         echo
         echo "======================================================="
         echo
