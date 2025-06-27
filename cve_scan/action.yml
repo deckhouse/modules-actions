@@ -81,9 +81,23 @@ runs:
         echo
         echo "======================================================="
         echo
-        echo "Log in to registries"
-        echo "${{inputs.prod_registry_password}}" | docker login --username="${{inputs.prod_registry_user}}" --password-stdin ${{inputs.prod_registry}}
-        echo "${{inputs.dev_registry_password}}" | docker login --username="${{inputs.dev_registry_user}}" --password-stdin ${{inputs.dev_registry}}
+        echo "Preparing DOCKER_CONFIG and log in to registries"
+        mkdir -p "${workdir}/docker"
+        cat > "${workdir}/docker/config.json" << EOL
+        {
+                "auths": {
+                        "${{inputs.prod_registry}}": {
+                                "auth": "$(echo -n "${{inputs.prod_registry_user}}:${{inputs.prod_registry_password}}" | base64)"
+                        },
+                        "${{inputs.dev_registry}}": {
+                                "auth": "$(echo -n "${{inputs.dev_registry_user}}:${{inputs.dev_registry_password}}" | base64)"
+                        }
+                }
+        }
+        EOL
+        export DOCKER_CONFIG="${workdir}/docker"
+        echo docker login "${{inputs.prod_registry}}"
+        echo docker login "${{inputs.dev_registry}}"
         echo
         echo "======================================================="
         echo
