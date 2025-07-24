@@ -31,9 +31,6 @@ inputs:
   if_no_group:
     description: 'action to be performed if no project group is specified'
     required: false
-  if_no_branch:
-    description: 'action to be performed if there is no branch'
-    required: false
   skip_unreachable_procedure_analysis:
     description: 'exclusion procedure option'
     required: false
@@ -80,7 +77,6 @@ runs:
         SVACER_IMPORT_PASSWORD: "${{ inputs.svacer_import_password }}"
         PROJECT_GROUP: ${{ inputs.project_group }}
         IF_NO_GROUP: ${{ inputs.if_no_group }}
-        IF_NO_BRANCH: ${{ inputs.if_no_branch }}
         SKIP_UNREACHABLE_PROCEDURE_ANALYSIS: ${{ inputs.skip_unreachable_procedure_analysis }}
       shell: bash
       run: |
@@ -95,7 +91,6 @@ runs:
         # Define import options
         PROJECT_GROUP=${PROJECT_GROUP:-"Unspecified"}
         IF_NO_GROUP=${IF_NO_GROUP:-"add"}
-        IF_NO_BRANCH=${IF_NO_BRANCH:-"create-empty"}
 
         # Define color codes
         RED="\033[0;31m"   # Red for errors
@@ -232,7 +227,6 @@ runs:
             --form options='{\"values\":[ \
             {\"option\":\"project-group\",\"value\":\"${PROJECT_GROUP}\"}, \
             {\"option\":\"if-no-group\",\"value\":\"${IF_NO_GROUP}\"}, \
-            {\"option\":\"if-no-branch\",\"value\":\"${IF_NO_BRANCH}\"} \
             {\"option\":\"field\",\"value\":\"CI_COMMIT_HASH:${CI_COMMIT_HASH}\"} \
             ]}'"
 
