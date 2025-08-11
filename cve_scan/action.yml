@@ -136,8 +136,8 @@ runs:
                 exit 1
               fi
             else
-                echo "ERROR: TAG TYPE is not defined!"
-                exit 1
+              echo "ERROR: TAG TYPE is not defined!"
+              exit 1
             fi
           fi
         fi
