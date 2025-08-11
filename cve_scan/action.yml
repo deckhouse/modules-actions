@@ -129,7 +129,7 @@ runs:
                 exit 1
               fi
             elif [ "${TAG_TYPE}" == "dev" ]; then
-              if [ $(crane ls "${PROD_REGISTRY_MODULE_BASEDIR}/${MODULE_NAME}" | grep "^${TAG}$" | wc -l) -eq 1 ]; then
+              if [ $(crane ls "${DEV_REGISTRY_MODULE_BASEDIR}/${MODULE_NAME}" | grep "^${TAG}$" | wc -l) -eq 1 ]; then
                 module_tags=("${TAG}")
               else
                 echo "ERROR: Provided tag \"${TAG}\" is not found in dev registry"
