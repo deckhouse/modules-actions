@@ -134,6 +134,7 @@ runs:
               else
                 echo "ERROR: Provided tag \"${TAG}\" is not found in dev registry"
                 exit 1
+              fi
             else
                 echo "ERROR: TAG TYPE is not defined!"
                 exit 1
