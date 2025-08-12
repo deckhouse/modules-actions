@@ -1,6 +1,9 @@
 name: 'Trivy CVE Scan'
 description: 'Build Deckhouse module'
 inputs:
+  tag_type:
+    description: 'Module tag type'
+    required: true
   tag:
     description: 'Module image tag'
     required: true
@@ -63,6 +66,7 @@ runs:
         DECKHOUSE_PRIVATE_REPO: ${{inputs.deckhouse_private_repo}}
         IMAGES_DIGESTS_PATH: "/images_digests.json"
         TAG: "${{inputs.tag}}"
+        TAG_TYPE: "${{inputs.tag_type}}"
         MODULE_NAME: "${{inputs.module_name}}"
         DD_URL: "${{inputs.dd_url}}"
         DD_TOKEN: "${{inputs.dd_token}}"
@@ -116,11 +120,23 @@ runs:
         # Check if provided tag for manual run is for release
         if [ "${{ github.event_name }}" != "pull_request" ]; then
           if [ "${TAG}" != "${{ github.event.repository.default_branch }}" ]; then
-            # if some specific release is defined - scan only it
-            if echo "${TAG}"|grep -q "^[0-9]*\.[0-9]*$"; then
-              module_tags=($(crane ls "${PROD_REGISTRY_MODULE_BASEDIR}/${MODULE_NAME}" | grep "^v${TAG}\.[0-9]*$" | sort -V -r | head -n 1))
+            if [ "${TAG_TYPE}" == "release" ]; then
+              # if some specific release is defined - scan only it
+              if echo "${TAG}"|grep -q "^[0-9]*\.[0-9]*$"; then
+                module_tags=($(crane ls "${PROD_REGISTRY_MODULE_BASEDIR}/${MODULE_NAME}" | grep "^v${TAG}\.[0-9]*$" | sort -V -r | head -n 1))
+              else
+                echo "ERROR: Please specify required release in the following format: [0-9]*\.[0-9]*"
+                exit 1
+              fi
+            elif [ "${TAG_TYPE}" == "dev" ]; then
+              if [ $(crane ls "${DEV_REGISTRY_MODULE_BASEDIR}/${MODULE_NAME}" | grep "^${TAG}$" | wc -l) -eq 1 ]; then
+                module_tags=("${TAG}")
+              else
+                echo "ERROR: Provided tag \"${TAG}\" is not found in dev registry"
+                exit 1
+              fi
             else
-              echo "ERROR: Please specify required release in the following format: [0-9]*\.[0-9]*"
+              echo "ERROR: TAG TYPE is not defined!"
               exit 1
             fi
           fi

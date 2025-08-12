@@ -10,8 +10,15 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      release_branch:
-        description: 'Optional. Set minor version of release you want to scan. e.g.: 1.23'
+      tag_type:
+        type: choice
+        description: Tag type
+        required: false
+        options:
+        - release
+        - dev
+      tag_name:
+        description: "release version in semver minor format (example: 1.68) or specified tag from dev registry"
         required: false
       scan_several_lastest_releases:
         description: 'Optional. Whether to scan last several releases or not. true/false. For scheduled pipelines it is always true. Default is: false.'
@@ -30,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: deckhouse/modules-actions/cve_scan@v3
+      - uses: deckhouse/modules-actions/cve_scan@v5
         with:
           tag: pr${{ github.event.number }}
           module_name: ${{ vars.MODULE_NAME }}
@@ -50,9 +57,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: deckhouse/modules-actions/cve_scan@v3
+      - uses: deckhouse/modules-actions/cve_scan@v5
         with:
-          tag: ${{ github.event.inputs.release_branch || github.event.repository.default_branch }}
+          tag: ${{ github.event.inputs.tag_name || github.event.repository.default_branch }}
+          tag_type: ${{ github.event.inputs.tag_type }}
           module_name: ${{ vars.MODULE_NAME }}
           dd_url: ${{ secrets.DEFECTDOJO_HOST }}
           dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
