@@ -19,7 +19,6 @@ runs:
     - name: Run Go lint
       shell: bash
       run: |
-        set -x
         basedir=$(pwd)
         failed='false'
         for i in $(find images -type f -name go.mod);do

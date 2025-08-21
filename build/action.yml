@@ -94,6 +94,7 @@ runs:
         SVACE_ANALYZE_HOST: ${{ inputs.svace_analyze_host }}
         SVACE_ANALYZE_SSH_KEY: ${{ inputs.svace_analyze_ssh_key }}
       run: |
+        set -x
         echo "::add-mask::${SVACE_ANALYZE_SSH_KEY}"
         ssh-add - <<< "${SVACE_ANALYZE_SSH_KEY}"
 
