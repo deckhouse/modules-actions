@@ -234,6 +234,10 @@ runs:
             info "Importing \"${project_name}\"..."
             response=$(send_request "${svacer_import}" $request_attempts)
             read import_task_id import_task_status <<< $(jq -r '(.task_id|tostring)+" "+.status' <<< ${response})
+            if [[ -z "${import_task_id}" ]]; then
+                error "Import task failed. Response: ${response}"
+                exit 1
+            fi
             info "Import task scheduled succesfully. Task id: ${import_task_id}"
 
             get_import_log="curl --write-out \"\\n%{http_code}\" -sSL --request GET \
@@ -322,8 +326,8 @@ runs:
             fi
 
             if [[ $(send "[[ -f ${proj}/${build_item}.tar.gz ]] && echo true || echo false") == true ]]; then
-                info "Start importing project \"${svacer_proj}\" ..."
-                upload_to_svacer "${svacer_proj}" "${CI_COMMIT_REF_NAME}" "${proj}/${build_item}.tar.gz"
+                info "Start importing project \"${import_project}\" with branch \"${import_branch}\" ..."
+                upload_to_svacer "${import_project}" "${import_branch}" "${proj}/${build_item}.tar.gz"
                 success "Import completed successfuly!"
             else
                 warning "Nothing to import! Couldn't find \"${build_item}.tar.gz\" in \"${proj}\""
