@@ -227,12 +227,17 @@ runs:
             --form options='{\"values\":[ \
             {\"option\":\"project-group\",\"value\":\"${PROJECT_GROUP}\"}, \
             {\"option\":\"if-no-group\",\"value\":\"${IF_NO_GROUP}\"}, \
-            {\"option\":\"field\",\"value\":\"CI_COMMIT_HASH:${CI_COMMIT_HASH}\"} \
+            {\"option\":\"field\",\"value\":\"CI_COMMIT_HASH:${CI_COMMIT_HASH}\"}, \
+            {\"option\":\"field\",\"value\":\"CI_COMMIT_REF_NAME:${CI_COMMIT_REF_NAME}\"} \
             ]}'"
 
             info "Importing \"${project_name}\"..."
             response=$(send_request "${svacer_import}" $request_attempts)
             read import_task_id import_task_status <<< $(jq -r '(.task_id|tostring)+" "+.status' <<< ${response})
+            if [[ -z "${import_task_id}" ]]; then
+                error "Import task failed. Response: ${response}"
+                exit 1
+            fi
             info "Import task scheduled succesfully. Task id: ${import_task_id}"
 
             get_import_log="curl --write-out \"\\n%{http_code}\" -sSL --request GET \
@@ -268,6 +273,27 @@ runs:
             fi
         }
 
+        define_import_params() {
+            local -n project="${1}"
+            local -n branch="${2}"
+            if [[ $(send "[[ -f ${proj}/.svace-dir/import-settings ]] && echo true || echo false") == true ]]; then
+                import_settings=$(send "cat /${proj}/.svace-dir/import-settings")
+                while IFS='=' read -r key val; do
+                    case "$key" in
+                    ProjectName)
+                        project=$val
+                        ;;
+                    Branch)
+                        branch=$val
+                        ;;
+                    *)
+                        warning "Undefined import setting \"${key}=${val}\" will be ommited!"
+                        ;;
+                    esac
+                done <<< "${import_settings}"
+            fi
+        }
+
         if [[ $(send "[[ -d /${SVACE_ANALYZE_DIR}/${CI_COMMIT_HASH} ]] && echo true || echo false") == false ]]; then
           echo "::warning file=$(realpath "$0")::Specified commit directory doesn't exists on analyze server." && exit 0
         fi
@@ -281,7 +307,12 @@ runs:
             svacer_proj=${proj#/${SVACE_ANALYZE_DIR}/${CI_COMMIT_HASH}/}
             build_item=${svacer_proj##*/}
 
+            import_project=${svacer_proj}
+            import_branch=${CI_COMMIT_REF_NAME}
+
             if [[ $(send "[[ -d ${proj}/.svace-dir ]] && echo true || echo false") == true ]]; then
+                define_import_params import_project import_branch
+
                 info "Start analyzing project \"${svacer_proj}\" ..."
                 send "svace config --svace-dir ${proj} THREAD_NUMBER auto"
                 send "svace analyze --set-config SKIP_UNREACHABLE_PROCEDURE_ANALYSIS=${SKIP_UNREACHABLE_PROCEDURE_ANALYSIS} --quiet --svace-dir ${proj}"
@@ -295,8 +326,8 @@ runs:
             fi
 
             if [[ $(send "[[ -f ${proj}/${build_item}.tar.gz ]] && echo true || echo false") == true ]]; then
-                info "Start importing project \"${svacer_proj}\" ..."
-                upload_to_svacer "${svacer_proj}" "${CI_COMMIT_REF_NAME}" "${proj}/${build_item}.tar.gz"
+                info "Start importing project \"${import_project}\" with branch \"${import_branch}\" ..."
+                upload_to_svacer "${import_project}" "${import_branch}" "${proj}/${build_item}.tar.gz"
                 success "Import completed successfuly!"
             else
                 warning "Nothing to import! Couldn't find \"${build_item}.tar.gz\" in \"${proj}\""
