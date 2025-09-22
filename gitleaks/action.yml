@@ -23,6 +23,28 @@ on:
         required: false
         default: "self-hosted,linux,x64"
         type: string
+  workflow_dispatch:
+    inputs:
+      gitleaks_version:
+        description: "Pinned Gitleaks version (tag)"
+        required: false
+        default: v8.28.0
+        type: string
+      scan_mode:
+        description: "full | diff"
+        required: false
+        default: full
+        type: string
+      config_path:
+        description: "Optional path to .gitleaks.toml (empty = built-in defaults)"
+        required: false
+        default: ""
+        type: string
+      runner_labels:
+        description: "Runner labels"
+        required: false
+        default: "self-hosted,linux,x64"
+        type: string
 
 permissions:
   contents: read
