@@ -1,4 +1,3 @@
-# Добавляем подписывание модулей
 name: 'Build Deckhouse Module'
 description: 'Build Deckhouse module'
 inputs:
