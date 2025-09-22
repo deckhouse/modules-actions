@@ -12,25 +12,25 @@ inputs:
     required: true
   werf_sign_cert:
     description: "Image signing certificate (file path or Base64)"
-    requierd: true
+    required: true
   werf_sign_intermediates:
     description: "Intermediate certificates (file path or Base64)"
-    requierd: true
+    required: true
   werf_sign_key:
     description: "Private key for signing (file path or Base64)"
-    requierd: true
+    required: true
   vault_addr:
     description: "Vault URL, e.g., http://localhost:8200"
-    requierd: true
+    required: true
   vault_role_id:
     description: "Vault role ID"
-    requierd: true
+    required: true
   vault_secret_id:
     description: "Vault secret ID"
-    requierd: true
+    required: true
   transit_secret_engine_path:
     description: "Vault namespace, e.g., dh-signer-dev"
-    requierd: true
+    required: true
   secondary_repo:
     description: 'Secondary repository address for module, e.g., registry.example.com/module-source/module_name'
     required: false
