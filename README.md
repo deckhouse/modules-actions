@@ -7,13 +7,13 @@
 This repository contains GitHub Actions workflows for building and deploying modules for the Deckhouse Kubernetes Platform.
 
 ## Workflows
-| Workflow                              | Description                                                                                                           |
-|---------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
-| [**setup**](./setup/action.yml)       | Sets up the environment for building and deploying modules. This workflow **must** be run before any other workflows. |
-| [**build**](./build/action.yml)       | Builds the Deckhouse modules using the [werf](https://werf.io/) tool.                                                 |
-| [**deploy**](./deploy/action.yml)     | Deploys the Deckhouse modules to the one of selected release channels.                                                |
-| [**cve_scan**](./cve_scan/action.yml) | Trivy CVE Scan of module images. Documentation can be found [here](./.docs/cve_scan.md)                               |
-| [**svace_analyze**](./svace_analyze/action.yml) | Include svace analyze action to analyze and import builds made with svace tool  |
+| Workflow                                        | Description                                                                                                            |
+|-------------------------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| [**setup**](./setup/action.yml)                 | Sets up the environment for building and deploying modules. This workflow **must** be run before any other workflows.  |
+| [**build**](./build/action.yml)                 | Builds the Deckhouse modules using the [werf](https://werf.io/) tool.                                                  |
+| [**deploy**](./deploy/action.yml)               | Deploys the Deckhouse modules to the one of selected release channels.                                                 |
+| [**cve_scan**](./cve_scan/action.yml)           | Trivy CVE Scan of module images. Documentation can be found [here](./.docs/cve_scan.md)                                |
+| [**svace_analyze**](./svace_analyze/action.yml) | Include svace analyze action to analyze and import builds made with svace tool                                         |
 
 ## Examples
 

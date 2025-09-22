@@ -279,4 +279,3 @@ runs:
           done < <(jq -rc 'to_entries[]' <<< "${digests}")
         done
         rm -r ${workdir}
-

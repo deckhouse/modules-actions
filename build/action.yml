@@ -1,3 +1,4 @@
+# Добавляем подписывание модулей
 name: 'Build Deckhouse Module'
 description: 'Build Deckhouse module'
 inputs:
@@ -10,6 +11,27 @@ inputs:
   module_tag:
     description: 'The version of the module to deploy to release channel, e.g., v1.21.1'
     required: true
+  werf_sign_cert:
+    description: "Image signing certificate (file path or Base64)"
+    requierd: true
+  werf_sign_intermediates:
+    description: "Intermediate certificates (file path or Base64)"
+    requierd: true
+  werf_sign_key:
+    description: "Private key for signing (file path or Base64)"
+    requierd: true
+  vault_addr:
+    description: "Vault URL, e.g., http://localhost:8200"
+    requierd: true
+  vault_role_id:
+    description: "Vault role ID"
+    requierd: true
+  vault_secret_id:
+    description: "Vault secret ID"
+    requierd: true
+  transit_secret_engine_path:
+    description: "Vault namespace, e.g., dh-signer-dev"
+    requierd: true
   secondary_repo:
     description: 'Secondary repository address for module, e.g., registry.example.com/module-source/module_name'
     required: false
@@ -124,6 +146,17 @@ runs:
         SVACE_ANALYZE_HOST: "${{ inputs.svace_analyze_host }}"
         SVACE_ANALYZE_SSH_USER: "${{ inputs.svace_analyze_ssh_user }}"
         SVACE_ENABLED: "${{ inputs.svace_enabled }}"
+        WERF_SIGN_CERT: "${{ inputs.werf_sign_cert }}"
+        WERF_SIGN_INTERMEDIATES: "${{ inputs.werf_sign_intermediates }}"
+        WERF_SIGN_KEY: "${{ inputs.werf_sign_key }}"
+        VAULT_ADDR: "${{ inputs.vault_addr }}"
+        VAULT_ROLE_ID: "${{ inputs.vault_role_id }}"
+        VAULT_SECRET_ID: "${{ inputs.vault_secret_id }}"
+        TRANSIT_SECRET_ENGINE_PATH: "${{ inputs.transit_secret_engine_path }}"
+        WERF_SIGN_MANIFEST: "1"
+        WERF_ANNOTATE_LAYERS_WITH_DM_VERITY_ROOT_HASH: "1"
+        WERF_SIGN_ELF_FILES: "1"
+        WERF_BSIGN_ELF_FILES: "1"
 
     - name: Cleanup ssh-agent
       if: ${{ steps.ssh_agent.outcome != 'skipped' && always() }}
