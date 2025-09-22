@@ -1,0 +1,157 @@
+name: gitleaks-reusable
+
+on:
+  workflow_call:
+    inputs:
+      gitleaks_version:
+        description: "Pinned Gitleaks version (tag)"
+        required: false
+        default: v8.28.0
+        type: string
+      scan_mode:
+        description: "full | diff"
+        required: false
+        default: full
+        type: string
+      config_path:
+        description: "Optional path to .gitleaks.toml (empty = built-in defaults)"
+        required: false
+        default: ""
+        type: string
+      runner_labels:
+        description: "Runner labels"
+        required: false
+        default: "self-hosted,linux,x64"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    name: Gitleaks (${{ inputs.scan_mode }})
+    runs-on: ${{ fromJSON('["' + replace(inputs.runner_labels, ',', '","') + '"]') }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.5.2
+        with:
+          fetch-depth: 0
+
+      - name: Install Gitleaks ${{ inputs.gitleaks_version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ver="${{ inputs.gitleaks_version }}"
+          url="https://github.com/gitleaks/gitleaks/releases/download/${ver}/gitleaks_${ver#v}_linux_x64.tar.gz"
+          echo "Downloading: $url"
+          curl -sSL "$url" -o gitleaks.tgz
+          tar -xzf gitleaks.tgz gitleaks
+          chmod +x gitleaks
+          sudo mv gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Ensure stub .gitleaks.toml (optional)
+        if: ${{ inputs.config_path != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cfg="${{ inputs.config_path }}"
+          mkdir -p "$(dirname "$cfg")"
+          if [[ ! -f "$cfg" ]]; then
+            printf '%s\n' \
+              '# Placeholder config to be tuned later.' \
+              '# ВАЖНО: если вы используете этот файл, он полностью заменит встроенные правила.' \
+              '[allowlist]' \
+              '  description = "example placeholder"' \
+              '  regexTarget = "match" # пример, удалите/измените позже' \
+              > "$cfg"
+          fi
+          echo "Stub config ensured at: $cfg"
+
+      - name: Compute base ref for PR
+        id: base
+        if: ${{ inputs.scan_mode == 'diff' && github.event_name == 'pull_request' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git remote -v
+          git fetch origin "${GITHUB_BASE_REF}:${GITHUB_BASE_REF}" --depth=0 || true
+          BASE_SHA=$(git merge-base "HEAD" "origin/${GITHUB_BASE_REF}")
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Gitleaks detect (full)
+        if: ${{ inputs.scan_mode == 'full' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          extra=()
+          if [[ -n "${{ inputs.config_path }}" ]]; then
+            extra+=( -c "${{ inputs.config_path }}" )
+          fi
+          echo "▶ Running full scan..."
+          if gitleaks detect --no-banner --no-color --report-format json --report-path - --source . "${extra[@]}" | tee gitleaks.json; then
+            echo "✅ No leaks found."
+          else
+            echo "❌ Leaks found."
+            jq -r --arg url "${{ github.server_url }}/${{ github.repository }}" '
+              .findings[]? as $f |
+              ($f.File // $f.file) as $file |
+              ($f.StartLine // $f.Line // $f.line // 0) as $line |
+              ($f.RuleID // $f.Rule // $f.rule) as $rule |
+              ($f.Commit // $f.commit // "") as $sha |
+              ($f.Author // $f.author // "") as $author |
+              ($f.Email // $f.email // "") as $email |
+              ($f.Date // $f.date // "") as $date |
+              ($sha|length>0 and $file|length>0 and $line>0)
+                as $linkable |
+              ($linkable
+                | if . then "\($url)/blob/\($sha)/\($file)#L\($line)" else "" end) as $link |
+              "• [\($rule)] \($file):\($line) | commit=\($sha[0:7]) | author=\($author) <\($email)> | date=\($date)\n   \($link)"
+            ' gitleaks.json
+            exit 1
+          fi
+
+      - name: Gitleaks detect (diff)
+        if: ${{ inputs.scan_mode == 'diff' && github.event_name == 'pull_request' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="${{ steps.base.outputs.base_sha }}"
+          if [[ -z "$BASE_SHA" ]]; then
+            echo "No base SHA computed; fallback to full scan."
+            exit 2
+          fi
+          extra=()
+          if [[ -n "${{ inputs.config_path }}" ]]; then
+            extra+=( -c "${{ inputs.config_path }}" )
+          fi
+          echo "▶ Running diff scan from $BASE_SHA...HEAD"
+          if gitleaks detect --no-banner --no-color --report-format json --report-path - --source . --log-opts "$BASE_SHA...HEAD" "${extra[@]}" | tee gitleaks.json; then
+            echo "✅ No leaks found in diff."
+          else
+            echo "❌ Leaks found in diff."
+            jq -r --arg url "${{ github.server_url }}/${{ github.repository }}" '
+              .findings[]? as $f |
+              ($f.File // $f.file) as $file |
+              ($f.StartLine // $f.Line // $f.line // 0) as $line |
+              ($f.RuleID // $f.Rule // $f.rule) as $rule |
+              ($f.Commit // $f.commit // "") as $sha |
+              ($f.Author // $f.author // "") as $author |
+              ($f.Email // $f.email // "") as $email |
+              ($f.Date // $f.date // "") as $date |
+              ($sha|length>0 and $file|length>0 and $line>0)
+                as $linkable |
+              ($linkable
+                | if . then "\($url)/blob/\($sha)/\($file)#L\($line)" else "" end) as $link |
+              "• [\($rule)] \($file):\($line) | commit=\($sha[0:7]) | author=\($author) <\($email)> | date=\($date)\n   \($link)"
+            ' gitleaks.json
+            exit 1
+          fi
+
+      - name: Fallback to full scan (non-PR diff mode)
+        if: ${{ inputs.scan_mode == 'diff' && github.event_name != 'pull_request' }}
+        shell: bash
+        run: |
+          echo "scan_mode=diff, но событие ${{ github.event_name }} не PR — выполняю полный скан."
+          exit 2

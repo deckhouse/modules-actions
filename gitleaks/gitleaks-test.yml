@@ -1,0 +1,18 @@
+# .github/workflows/_selftest_gitleaks.yml
+name: _selftest_gitleaks
+on:
+  workflow_dispatch:
+
+jobs:
+  selftest-full:
+    uses: ./gitleaks/gitleaks-reusable.yml
+    with:
+      scan_mode: full           
+      runner_labels: ubuntu-latest 
+
+  selftest-diff:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./gitleaks/gitleaks-reusable.yml
+    with:
+      scan_mode: diff
+      runner_labels: ubuntu-latest
