@@ -37,3 +37,5 @@ jobs:
           vault_role_id: "${{ secrets.VAULT_ROLE_ID }}"
           vault_secret_id: "${{ secrets.VAULT_SECRET_ID }}"
           transit_secret_engine_path: "${{ secrets.TRANSIT_SECRET_ENGINE_PATH }}"
+          werf_sign_elf_files: "1"
+          werf_bsign_elf_files: "1"
