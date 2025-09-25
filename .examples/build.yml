@@ -19,6 +19,9 @@ jobs:
           registry: registry.deckhouse.io
           registry_login: ${{ secrets.REGISTRY_LOGIN }}
           registry_password: ${{ secrets.REGISTRY_PASSWORD }}
+          werf_version: "2.47.5+dk"
+          fox_access_token: ${{ secrets.FOX_ACCESS_TOKEN }}
+          deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
       - uses: deckhouse/modules-actions/build@v4
         with:
           module_source: registry.deckhouse.io/deckhouse/ce/modules

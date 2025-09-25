@@ -13,6 +13,12 @@ inputs:
   werf_version:
     description: 'Werf version'
     required: true
+  fox_access_token:
+    description: 'FOX GitLab access token for downloading werf'
+    required: true
+  deckhouse_private_repo:
+    description: 'Deckhouse private repository URL'
+    required: true
 
 runs:
   using: "composite"
@@ -23,8 +29,8 @@ runs:
       shell: bash
       run: |
         curl --fail -sSL -o ~/bin/werf \
-        -H "PRIVATE-TOKEN: ${{ secrets.FOX_ACCESS_TOKEN }}" \
-        "https://${{ secrets.DECKHOUSE_PRIVATE_REPO }}/api/v4/projects/4052/packages/generic/werf/${{ inputs.werf_version }}/werf"
+        -H "PRIVATE-TOKEN: ${{ inputs.fox_access_token }}" \
+        "https://${{ inputs.deckhouse_private_repo }}/api/v4/projects/4052/packages/generic/werf/${{ inputs.werf_version }}/werf"
         chmod +x ~/bin/werf
         export PATH=~/bin:$PATH
 
