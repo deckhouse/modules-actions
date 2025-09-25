@@ -31,6 +31,12 @@ inputs:
   transit_secret_engine_path:
     description: "Vault namespace, e.g., dh-signer-dev"
     required: true
+  werf_sign_elf_files:
+    description: "ELF files to sign 1 or 0"
+    required: true
+  werf_bsign_elf_files:
+    description: "ELF files to bsign 1 or 0"
+    required: true
   secondary_repo:
     description: 'Secondary repository address for module, e.g., registry.example.com/module-source/module_name'
     required: false
@@ -154,8 +160,8 @@ runs:
         TRANSIT_SECRET_ENGINE_PATH: "${{ inputs.transit_secret_engine_path }}"
         WERF_SIGN_MANIFEST: "1"
         WERF_ANNOTATE_LAYERS_WITH_DM_VERITY_ROOT_HASH: "1"
-        WERF_SIGN_ELF_FILES: "1"
-        WERF_BSIGN_ELF_FILES: "1"
+        WERF_SIGN_ELF_FILES: "${{ inputs.werf_sign_elf_files }}"
+        WERF_BSIGN_ELF_FILES: "${{ inputs.werf_bsign_elf_files }}"
 
     - name: Cleanup ssh-agent
       if: ${{ steps.ssh_agent.outcome != 'skipped' && always() }}

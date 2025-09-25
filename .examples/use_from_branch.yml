@@ -1,0 +1,116 @@
+# Пример использования actions из ветки feat/signing_images
+# Этот файл нужно поместить в другой репозиторий в .github/workflows/
+
+name: "Сборка модуля с подписью (dev версия)"
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: "Сборка и подпись модуля"
+    
+    steps:
+      # Шаг 1: Получить код репозитория
+      - name: "📥 Checkout код"
+        uses: actions/checkout@v4
+      
+      # Шаг 2: Настройка окружения (из ветки feat/signing_images)
+      - name: "⚙️ Настройка окружения"
+        uses: deckhouse/modules-actions/setup@feat/signing_images
+        with:
+          registry: registry.deckhouse.io
+          registry_login: ${{ secrets.REGISTRY_LOGIN }}
+          registry_password: ${{ secrets.REGISTRY_PASSWORD }}
+          werf_version: "2.14.3"
+      
+      # Шаг 3: Сборка модуля с подписью (из ветки feat/signing_images)
+      - name: "🏗️ Сборка модуля с подписью"
+        uses: deckhouse/modules-actions/build@feat/signing_images
+        with:
+          # Основные параметры модуля
+          module_source: registry.deckhouse.io/deckhouse/ce/modules
+          module_name: ${{ vars.MODULE_NAME || 'my-module' }}
+          module_tag: ${{ github.ref_name }}
+          
+          # Параметры для подписи (новые в вашей ветке)
+          werf_sign_cert: ${{ secrets.WERF_SIGN_CERT }}
+          werf_sign_intermediates: ${{ secrets.WERF_SIGN_INTERMEDIATES }}
+          werf_sign_key: ${{ secrets.WERF_SIGN_KEY }}
+          
+          # Параметры Vault (новые в вашей ветке)
+          vault_addr: ${{ secrets.VAULT_ADDR }}
+          vault_role_id: ${{ secrets.VAULT_ROLE_ID }}
+          vault_secret_id: ${{ secrets.VAULT_SECRET_ID }}
+          transit_secret_engine_path: ${{ secrets.TRANSIT_SECRET_ENGINE_PATH }}
+          
+          # Дополнительные параметры
+          secondary_repo: ${{ vars.SECONDARY_REPO }}
+          source_repo_ssh_key: ${{ secrets.SOURCE_REPO_SSH_KEY }}
+          
+          # Параметры Svace
+          svace_enabled: ${{ github.event.inputs.svace_enabled || 'false' }}
+          svace_analyze_host: ${{ secrets.SVACE_ANALYZE_HOST }}
+          svace_analyze_ssh_user: ${{ secrets.SVACE_ANALYZE_SSH_USER }}
+          svace_analyze_ssh_key: ${{ secrets.SVACE_ANALYZE_SSH_PRIVATE_KEY }}
+      
+      # Шаг 4: CVE сканирование (опционально, из ветки feat/signing_images)
+      - name: "🔍 CVE сканирование"
+        if: github.event_name != 'pull_request'  # Пропускать для PR
+        uses: deckhouse/modules-actions/cve_scan@feat/signing_images
+        with:
+          tag: ${{ github.ref_name }}
+          tag_type: dev
+          module_name: ${{ vars.MODULE_NAME || 'my-module' }}
+          dd_url: ${{ secrets.DEFECTDOJO_HOST }}
+          dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
+          prod_registry: ${{ secrets.PROD_READ_REGISTRY }}
+          prod_registry_user: ${{ secrets.PROD_READ_REGISTRY_LOGIN }}
+          prod_registry_password: ${{ secrets.PROD_READ_REGISTRY_PASSWORD }}
+          dev_registry: ${{ secrets.DEV_REGISTRY }}
+          dev_registry_user: ${{ secrets.DEV_REGISTRY_LOGIN }}
+          dev_registry_password: ${{ secrets.DEV_REGISTRY_PASSWORD }}
+          deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
+
+# ВАЖНО: Необходимые secrets в целевом репозитории
+# 
+# Secrets для registry:
+# - REGISTRY_LOGIN
+# - REGISTRY_PASSWORD
+# 
+# Secrets для подписи (новые):
+# - WERF_SIGN_CERT
+# - WERF_SIGN_INTERMEDIATES  
+# - WERF_SIGN_KEY
+# 
+# Secrets для Vault (новые):
+# - VAULT_ADDR
+# - VAULT_ROLE_ID
+# - VAULT_SECRET_ID
+# - TRANSIT_SECRET_ENGINE_PATH
+# 
+# Secrets для SSH:
+# - SOURCE_REPO_SSH_KEY
+# - SVACE_ANALYZE_SSH_PRIVATE_KEY
+# 
+# Secrets для CVE сканирования:
+# - DEFECTDOJO_HOST
+# - DEFECTDOJO_API_TOKEN
+# - PROD_READ_REGISTRY
+# - PROD_READ_REGISTRY_LOGIN
+# - PROD_READ_REGISTRY_PASSWORD
+# - DEV_REGISTRY
+# - DEV_REGISTRY_LOGIN
+# - DEV_REGISTRY_PASSWORD
+# - DECKHOUSE_PRIVATE_REPO
+# - SVACE_ANALYZE_HOST
+# - SVACE_ANALYZE_SSH_USER
+# 
+# Variables:
+# - MODULE_NAME
+# - SECONDARY_REPO
