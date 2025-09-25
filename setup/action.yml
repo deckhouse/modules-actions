@@ -28,11 +28,12 @@ runs:
     - name: Install werf
       shell: bash
       run: |
+        mkdir -p ~/bin
         curl --fail -sSL -o ~/bin/werf \
         -H "PRIVATE-TOKEN: ${{ inputs.fox_access_token }}" \
         "https://${{ inputs.deckhouse_private_repo }}/api/v4/projects/4052/packages/generic/werf/${{ inputs.werf_version }}/werf"
         chmod +x ~/bin/werf
-        export PATH=~/bin:$PATH
+        echo "$HOME/bin" >> $GITHUB_PATH
 
     - name: Print werf version
       shell: bash
