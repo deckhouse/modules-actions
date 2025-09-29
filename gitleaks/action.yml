@@ -14,6 +14,10 @@ inputs:
     description: "Path to .gitleaks.toml (leave empty for default rules)"
     required: false
     default: ""
+  print_limit:
+    description: "Max lines to print to logs/summary"
+    required: false
+    default: "200"
 
 runs:
   using: "composite"
@@ -46,9 +50,7 @@ runs:
         install_dir="$HOME/.local/bin"
         mkdir -p "$install_dir"
         mv gitleaks "$install_dir/gitleaks"
-
         echo "$install_dir" >> "$GITHUB_PATH"
-
         "$install_dir/gitleaks" version
 
     - name: Sanity check PATH (should find gitleaks)
@@ -93,6 +95,55 @@ runs:
         echo "▶ Running diff scan $BASE_SHA...HEAD"
         gitleaks detect --no-banner --report-format json --report-path gitleaks.json \
           --source . --log-opts "$BASE_SHA...HEAD" "${extra[@]}"
+
+    - name: Print findings (always)
+      if: always()
+      shell: bash
+      run: |
+        set -euo pipefail
+        [[ -f gitleaks.json ]] || { echo "No gitleaks.json produced"; exit 0; }
+
+        LIMIT="${{ inputs.print_limit }}"
+        REPO_URL="${{ github.server_url }}/${{ github.repository }}"
+
+        # jq-скрипт, устойчивый к разным схемам (findings[] или массив верхнего уровня)
+        JQ_FILTER='
+          def norm:
+            {
+              file: (.File // .file // .Target // .Location.File // ""),
+              line: (.StartLine // .Line // .Location.StartLine // 0),
+              rule: (.RuleID // .Rule // .Description // ""),
+              commit: (.Commit // .commit // "")
+            };
+          (if type=="object" and has("findings") then .findings
+           elif type=="array" then .
+           else [] end)[] | norm
+        '
+
+        COUNT=$(jq -r 'if type=="object" and has("findings") then (.findings|length)
+                       elif type=="array" then length else 0 end' gitleaks.json)
+
+        echo "Findings: $COUNT"
+        echo "### Gitleaks findings (showing up to $LIMIT) :closed_lock_with_key:" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo "| Rule | File:Line | Commit | Link |" >> "$GITHUB_STEP_SUMMARY"
+        echo "|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+
+        jq -r "$JQ_FILTER | [.rule, (.file+\":\"+(.line|tostring)), (.commit[0:7]),
+               (if (.commit|length)>0 and (.file|length)>0 and (.line|tonumber)>0
+                then \"$REPO_URL/blob/\"+.commit+\"/\"+.file+\"#L\"+(.line|tostring)
+                else \"\" end)]
+              | @tsv" gitleaks.json \
+          | head -n "$LIMIT" \
+          | while IFS=$'\t' read -r rule loc sha link; do
+              printf '• %s %s %s %s\n' "[$rule]" "$loc" "$sha" "$link"
+              printf '| `%s` | `%s` | `%s` | %s |\n' "$rule" "$loc" "$sha" "${link:-"-"}" >> "$GITHUB_STEP_SUMMARY"
+            done
+
+        if (( COUNT > LIMIT )); then
+          MORE=$((COUNT - LIMIT))
+          echo "... and $MORE more (see artifact gitleaks-report)." | tee -a "$GITHUB_STEP_SUMMARY"
+        fi
 
     - name: Upload report (always)
       if: always()
