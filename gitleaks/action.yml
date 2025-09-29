@@ -46,8 +46,16 @@ runs:
         install_dir="$HOME/.local/bin"
         mkdir -p "$install_dir"
         mv gitleaks "$install_dir/gitleaks"
+
         echo "$install_dir" >> "$GITHUB_PATH"
 
+        "$install_dir/gitleaks" version
+
+    - name: Sanity check PATH (should find gitleaks)
+      shell: bash
+      run: |
+        set -euo pipefail
+        command -v gitleaks
         gitleaks version
 
     - name: Compute base SHA (diff mode on PR)
@@ -67,9 +75,7 @@ runs:
         set -euo pipefail
         extra=()
         [[ -n "${{ inputs.config_path }}" ]] && extra+=( -c "${{ inputs.config_path }}" )
-
         echo "▶ Running full scan..."
-        # exit code 1 => leaks found; action/job will fail (that’s intended)
         gitleaks detect --no-banner --report-format json --report-path gitleaks.json --source . "${extra[@]}"
 
     - name: Gitleaks detect (diff PR)
@@ -84,7 +90,6 @@ runs:
         fi
         extra=()
         [[ -n "${{ inputs.config_path }}" ]] && extra+=( -c "${{ inputs.config_path }}" )
-
         echo "▶ Running diff scan $BASE_SHA...HEAD"
         gitleaks detect --no-banner --report-format json --report-path gitleaks.json \
           --source . --log-opts "$BASE_SHA...HEAD" "${extra[@]}"
