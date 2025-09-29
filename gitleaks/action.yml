@@ -1,179 +1,98 @@
-name: gitleaks-reusable
+name: "Gitleaks scan"
+description: "Run Gitleaks in full or diff mode (composite action)"
 
-on:
-  workflow_call:
-    inputs:
-      gitleaks_version:
-        description: "Pinned Gitleaks version (tag)"
-        required: false
-        default: v8.28.0
-        type: string
-      scan_mode:
-        description: "full | diff"
-        required: false
-        default: full
-        type: string
-      config_path:
-        description: "Optional path to .gitleaks.toml (empty = built-in defaults)"
-        required: false
-        default: ""
-        type: string
-      runner_labels:
-        description: "Runner labels"
-        required: false
-        default: "self-hosted,linux,x64"
-        type: string
-  workflow_dispatch:
-    inputs:
-      gitleaks_version:
-        description: "Pinned Gitleaks version (tag)"
-        required: false
-        default: v8.28.0
-        type: string
-      scan_mode:
-        description: "full | diff"
-        required: false
-        default: full
-        type: string
-      config_path:
-        description: "Optional path to .gitleaks.toml (empty = built-in defaults)"
-        required: false
-        default: ""
-        type: string
-      runner_labels:
-        description: "Runner labels"
-        required: false
-        default: "self-hosted,linux,x64"
-        type: string
+inputs:
+  gitleaks_version:
+    description: "Gitleaks tag to install (e.g. v8.28.0)"
+    required: false
+    default: "v8.28.0"
+  scan_mode:
+    description: "Scan mode: full | diff"
+    required: false
+    default: "full"
+  config_path:
+    description: "Path to .gitleaks.toml (leave empty for default rules)"
+    required: false
+    default: ""
 
-permissions:
-  contents: read
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
-jobs:
-  gitleaks:
-    name: Gitleaks (${{ inputs.scan_mode }})
-    runs-on: ${{ fromJSON('["' + replace(inputs.runner_labels, ',', '","') + '"]') }}
+    - name: Install Gitleaks ${{ inputs.gitleaks_version }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        ver="${{ inputs.gitleaks_version }}"
+        file_ver="${ver#v}"
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3.5.2
-        with:
-          fetch-depth: 0
+        arch="$(uname -m)"
+        case "$arch" in
+          x86_64|amd64)  pkg_arch="linux_x64" ;;
+          aarch64|arm64) pkg_arch="linux_arm64" ;;
+          *) echo "Unsupported arch: $arch"; exit 1 ;;
+        esac
 
-      - name: Install Gitleaks ${{ inputs.gitleaks_version }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          ver="${{ inputs.gitleaks_version }}"
-          url="https://github.com/gitleaks/gitleaks/releases/download/${ver}/gitleaks_${ver#v}_linux_x64.tar.gz"
-          echo "Downloading: $url"
-          curl -sSL "$url" -o gitleaks.tgz
-          tar -xzf gitleaks.tgz gitleaks
-          chmod +x gitleaks
-          sudo mv gitleaks /usr/local/bin/gitleaks
-          gitleaks version
+        url="https://github.com/gitleaks/gitleaks/releases/download/${ver}/gitleaks_${file_ver}_${pkg_arch}.tar.gz"
+        echo "Downloading: $url"
+        curl -sSL "$url" -o gitleaks.tgz
+        tar -xzf gitleaks.tgz gitleaks
+        chmod +x gitleaks
 
-      - name: Ensure stub .gitleaks.toml (optional)
-        if: ${{ inputs.config_path != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          cfg="${{ inputs.config_path }}"
-          mkdir -p "$(dirname "$cfg")"
-          if [[ ! -f "$cfg" ]]; then
-            printf '%s\n' \
-              '# Placeholder config to be tuned later.' \
-              '# ВАЖНО: если вы используете этот файл, он полностью заменит встроенные правила.' \
-              '[allowlist]' \
-              '  description = "example placeholder"' \
-              '  regexTarget = "match" # пример, удалите/измените позже' \
-              > "$cfg"
-          fi
-          echo "Stub config ensured at: $cfg"
+        install_dir="$HOME/.local/bin"
+        mkdir -p "$install_dir"
+        mv gitleaks "$install_dir/gitleaks"
+        echo "$install_dir" >> "$GITHUB_PATH"
 
-      - name: Compute base ref for PR
-        id: base
-        if: ${{ inputs.scan_mode == 'diff' && github.event_name == 'pull_request' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          git remote -v
-          git fetch origin "${GITHUB_BASE_REF}:${GITHUB_BASE_REF}" --depth=0 || true
-          BASE_SHA=$(git merge-base "HEAD" "origin/${GITHUB_BASE_REF}")
-          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+        gitleaks version
 
-      - name: Gitleaks detect (full)
-        if: ${{ inputs.scan_mode == 'full' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          extra=()
-          if [[ -n "${{ inputs.config_path }}" ]]; then
-            extra+=( -c "${{ inputs.config_path }}" )
-          fi
-          echo "▶ Running full scan..."
-          if gitleaks detect --no-banner --no-color --report-format json --report-path - --source . "${extra[@]}" | tee gitleaks.json; then
-            echo "✅ No leaks found."
-          else
-            echo "❌ Leaks found."
-            jq -r --arg url "${{ github.server_url }}/${{ github.repository }}" '
-              .findings[]? as $f |
-              ($f.File // $f.file) as $file |
-              ($f.StartLine // $f.Line // $f.line // 0) as $line |
-              ($f.RuleID // $f.Rule // $f.rule) as $rule |
-              ($f.Commit // $f.commit // "") as $sha |
-              ($f.Author // $f.author // "") as $author |
-              ($f.Email // $f.email // "") as $email |
-              ($f.Date // $f.date // "") as $date |
-              ($sha|length>0 and $file|length>0 and $line>0)
-                as $linkable |
-              ($linkable
-                | if . then "\($url)/blob/\($sha)/\($file)#L\($line)" else "" end) as $link |
-              "• [\($rule)] \($file):\($line) | commit=\($sha[0:7]) | author=\($author) <\($email)> | date=\($date)\n   \($link)"
-            ' gitleaks.json
-            exit 1
-          fi
+    - name: Compute base SHA (diff mode on PR)
+      id: base
+      if: ${{ inputs.scan_mode == 'diff' && github.event_name == 'pull_request' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        git fetch origin "${GITHUB_BASE_REF}:${GITHUB_BASE_REF}" --depth=0 || true
+        BASE_SHA=$(git merge-base HEAD "origin/${GITHUB_BASE_REF}")
+        echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
 
-      - name: Gitleaks detect (diff)
-        if: ${{ inputs.scan_mode == 'diff' && github.event_name == 'pull_request' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          BASE_SHA="${{ steps.base.outputs.base_sha }}"
-          if [[ -z "$BASE_SHA" ]]; then
-            echo "No base SHA computed; fallback to full scan."
-            exit 2
-          fi
-          extra=()
-          if [[ -n "${{ inputs.config_path }}" ]]; then
-            extra+=( -c "${{ inputs.config_path }}" )
-          fi
-          echo "▶ Running diff scan from $BASE_SHA...HEAD"
-          if gitleaks detect --no-banner --no-color --report-format json --report-path - --source . --log-opts "$BASE_SHA...HEAD" "${extra[@]}" | tee gitleaks.json; then
-            echo "✅ No leaks found in diff."
-          else
-            echo "❌ Leaks found in diff."
-            jq -r --arg url "${{ github.server_url }}/${{ github.repository }}" '
-              .findings[]? as $f |
-              ($f.File // $f.file) as $file |
-              ($f.StartLine // $f.Line // $f.line // 0) as $line |
-              ($f.RuleID // $f.Rule // $f.rule) as $rule |
-              ($f.Commit // $f.commit // "") as $sha |
-              ($f.Author // $f.author // "") as $author |
-              ($f.Email // $f.email // "") as $email |
-              ($f.Date // $f.date // "") as $date |
-              ($sha|length>0 and $file|length>0 and $line>0)
-                as $linkable |
-              ($linkable
-                | if . then "\($url)/blob/\($sha)/\($file)#L\($line)" else "" end) as $link |
-              "• [\($rule)] \($file):\($line) | commit=\($sha[0:7]) | author=\($author) <\($email)> | date=\($date)\n   \($link)"
-            ' gitleaks.json
-            exit 1
-          fi
+    - name: Gitleaks detect (full)
+      if: ${{ inputs.scan_mode == 'full' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        extra=()
+        [[ -n "${{ inputs.config_path }}" ]] && extra+=( -c "${{ inputs.config_path }}" )
 
-      - name: Fallback to full scan (non-PR diff mode)
-        if: ${{ inputs.scan_mode == 'diff' && github.event_name != 'pull_request' }}
-        shell: bash
-        run: |
-          echo "scan_mode=diff, но событие ${{ github.event_name }} не PR — выполняю полный скан."
+        echo "▶ Running full scan..."
+        # exit code 1 => leaks found; action/job will fail (that’s intended)
+        gitleaks detect --no-banner --report-format json --report-path gitleaks.json --source . "${extra[@]}"
+
+    - name: Gitleaks detect (diff PR)
+      if: ${{ inputs.scan_mode == 'diff' && github.event_name == 'pull_request' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        BASE_SHA="${{ steps.base.outputs.base_sha }}"
+        if [[ -z "$BASE_SHA" ]]; then
+          echo "Base SHA not found; falling back to full scan"
           exit 2
+        fi
+        extra=()
+        [[ -n "${{ inputs.config_path }}" ]] && extra+=( -c "${{ inputs.config_path }}" )
+
+        echo "▶ Running diff scan $BASE_SHA...HEAD"
+        gitleaks detect --no-banner --report-format json --report-path gitleaks.json \
+          --source . --log-opts "$BASE_SHA...HEAD" "${extra[@]}"
+
+    - name: Upload report (always)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: gitleaks-report
+        path: gitleaks.json
+        if-no-files-found: ignore
