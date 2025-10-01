@@ -1,23 +1,11 @@
 name: "Gitleaks scan"
-description: "Run Gitleaks in full or diff mode (composite action)"
+description: "Run Gitleaks in full or diff mode (composite action, fixed version/config/limit)"
 
 inputs:
-  gitleaks_version:
-    description: "Gitleaks tag to install (e.g. v8.28.0)"
-    required: false
-    default: "v8.28.0"
   scan_mode:
     description: "Scan mode: full | diff"
     required: false
     default: "full"
-  config_path:
-    description: "Path to .gitleaks.toml (leave empty for default rules)"
-    required: false
-    default: ""
-  print_limit:
-    description: "Max lines to print to logs/summary"
-    required: false
-    default: "200"
 
 runs:
   using: "composite"
@@ -27,11 +15,11 @@ runs:
       with:
         fetch-depth: 0
 
-    - name: Install Gitleaks ${{ inputs.gitleaks_version }}
+    - name: Install Gitleaks v8.28.0
       shell: bash
       run: |
         set -euo pipefail
-        ver="${{ inputs.gitleaks_version }}"
+        ver="v8.28.0"
         file_ver="${ver#v}"
 
         arch="$(uname -m)"
@@ -41,9 +29,11 @@ runs:
           *) echo "Unsupported arch: $arch"; exit 1 ;;
         esac
 
-        url="https://github.com/gitleaks/gitleaks/releases/download/${ver}/gitleaks_${file_ver}_${pkg_arch}.tar.gz"
-        echo "Downloading: $url"
-        curl -sSL "$url" -o gitleaks.tgz
+        base="https://github.com/gitleaks/gitleaks/releases/download/${ver}"
+        tgz="gitleaks_${file_ver}_${pkg_arch}.tar.gz"
+
+        echo "Downloading: $base/$tgz"
+        curl -sSL "$base/$tgz" -o gitleaks.tgz
         tar -xzf gitleaks.tgz gitleaks
         chmod +x gitleaks
 
@@ -60,6 +50,15 @@ runs:
         command -v gitleaks
         gitleaks version
 
+    - name: Ensure config exists (.github/gitleaks.toml)
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ ! -f ".github/gitleaks.toml" ]]; then
+          echo "Required config '.github/gitleaks.toml' is missing. Please add it to the repo." >&2
+          exit 1
+        fi
+
     - name: Compute base SHA (diff mode on PR)
       id: base
       if: ${{ inputs.scan_mode == 'diff' && github.event_name == 'pull_request' }}
@@ -75,10 +74,11 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        extra=()
-        [[ -n "${{ inputs.config_path }}" ]] && extra+=( -c "${{ inputs.config_path }}" )
-        echo "▶ Running full scan..."
-        gitleaks detect --no-banner --report-format json --report-path gitleaks.json --source . "${extra[@]}"
+        echo "▶ Running full scan with .github/gitleaks.toml"
+        gitleaks detect --no-banner \
+          --report-format json --report-path gitleaks.json \
+          -c ".github/gitleaks.toml" \
+          --source .
 
     - name: Gitleaks detect (diff PR)
       if: ${{ inputs.scan_mode == 'diff' && github.event_name == 'pull_request' }}
@@ -90,11 +90,11 @@ runs:
           echo "Base SHA not found; falling back to full scan"
           exit 2
         fi
-        extra=()
-        [[ -n "${{ inputs.config_path }}" ]] && extra+=( -c "${{ inputs.config_path }}" )
-        echo "▶ Running diff scan $BASE_SHA...HEAD"
-        gitleaks detect --no-banner --report-format json --report-path gitleaks.json \
-          --source . --log-opts "$BASE_SHA...HEAD" "${extra[@]}"
+        echo "▶ Running diff scan $BASE_SHA...HEAD with .github/gitleaks.toml"
+        gitleaks detect --no-banner \
+          --report-format json --report-path gitleaks.json \
+          -c ".github/gitleaks.toml" \
+          --source . --log-opts "$BASE_SHA...HEAD"
 
     - name: Print findings (always)
       if: always()
@@ -102,11 +102,9 @@ runs:
       run: |
         set -euo pipefail
         [[ -f gitleaks.json ]] || { echo "No gitleaks.json produced"; exit 0; }
-
-        LIMIT="${{ inputs.print_limit }}"
+        LIMIT=200
         REPO_URL="${{ github.server_url }}/${{ github.repository }}"
 
-        # jq-скрипт, устойчивый к разным схемам (findings[] или массив верхнего уровня)
         JQ_FILTER='
           def norm:
             {
