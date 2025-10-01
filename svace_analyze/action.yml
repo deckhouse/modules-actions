@@ -294,6 +294,19 @@ runs:
             fi
         }
 
+        get_svace_bin() {
+            proj="${1}"
+            svace_version=$(send "cat ${proj}/.svace-dir/svace-dir.version | awk 'FNR==3{print}'")
+
+            svace_bin="/opt/svace-${svace_version}/bin/svace"
+            if [[ $(send "[[ -x ${svace_bin} ]] && echo true || echo false") == true ]]; then
+                echo "${svace_bin}"
+            else
+                echo "svace"
+                error "\"${svace_bin}\" is not executable on analyze server. Using default."
+            fi
+        }
+
         if [[ $(send "[[ -d /${SVACE_ANALYZE_DIR}/${CI_COMMIT_HASH} ]] && echo true || echo false") == false ]]; then
           echo "::warning file=$(realpath "$0")::Specified commit directory doesn't exists on analyze server." && exit 0
         fi
@@ -312,10 +325,12 @@ runs:
 
             if [[ $(send "[[ -d ${proj}/.svace-dir ]] && echo true || echo false") == true ]]; then
                 define_import_params import_project import_branch
+                svace_bin=$(get_svace_bin "${proj}")
+                info "Using svace binary: $svace_bin"
 
                 info "Start analyzing project \"${svacer_proj}\" ..."
-                send "svace config --svace-dir ${proj} THREAD_NUMBER auto"
-                send "svace analyze --set-config SKIP_UNREACHABLE_PROCEDURE_ANALYSIS=${SKIP_UNREACHABLE_PROCEDURE_ANALYSIS} --quiet --svace-dir ${proj}"
+                send "${svace_bin} config --svace-dir ${proj} THREAD_NUMBER auto"
+                send "${svace_bin} analyze --set-config SKIP_UNREACHABLE_PROCEDURE_ANALYSIS=${SKIP_UNREACHABLE_PROCEDURE_ANALYSIS} --quiet --svace-dir ${proj}"
                 success "Analysis completed successfully!"
 
                 info "Start archiving project \"${svacer_proj}\" ..."
