@@ -1,5 +1,5 @@
 name: 'Trivy CVE Scan'
-description: 'Build Deckhouse module'
+description: 'CVE scan for Deckhouse module'
 inputs:
   tag:
     description: 'Module image tag'
@@ -31,13 +31,16 @@ inputs:
   dev_registry_password:
     description: 'Password to log in to deckhouse dev registry'
     required: true
-  deckhouse_private_repo:
-    description: 'URL to private repo to get Trivy from'
-    required: true
   case:
     description: 'Case to scan'
-    required: 
-  scan_several_lastest_releases:
+    required: true
+  cve_tests_repo_git:
+    description: 'CVE tests repo git'
+    required: true
+  cve_tests_repo_ssh_private_key:
+    description: 'CVE tests repo ssh private key'
+    required: true
+  scan_several_latest_releases:
     description: 'true/false. Whether to scan last several releases or not. For scheduled pipelines override will not work as value is always true'
     required: false
   latest_releases_amount:
@@ -52,6 +55,9 @@ inputs:
   module_dev_registry_custom_path:
     description: 'Module custom path in dev registry. Example: flant/modules'
     required: false
+  workdir:
+    description: 'Workdir'
+    required: false
 
 runs:
   using: "composite"
@@ -60,10 +66,10 @@ runs:
       uses: webfactory/ssh-agent@v0.9.0
       with:
           ssh-private-key: |
-            ${{ secrets.CVE_TESTS_SSH_PRIVATE_KEY }}
+            ${{ inputs.cve_tests_repo_ssh_private_key }}
     - name: Add ssh_known_hosts
       run: |
-        HOST=$(grep -oP '(?<=@)[^/:]+' <<< ${{ secrets.CVE_TESTS_REPO_GIT }})
+        HOST=$(grep -oP '(?<=@)[^/:]+' <<< ${{ inputs.cve_tests_repo_git }})
         echo "::add-mask::$HOST"
         IPS=$(nslookup "$HOST" | awk '/^Address: / { print $2 }')
         for IP in $IPS; do
@@ -83,31 +89,32 @@ runs:
       run: |
         echo "Cloning CVE scan script from private GitLab..."
 
-        mkdir -p ${{ env.WORKDIR }}/scripts
-        git clone ${{ secrets.CVE_TESTS_REPO_GIT }} ${{ env.WORKDIR }}/scripts
-        chmod +x "${{ env.WORKDIR }}/scripts/cve_scan.sh"
+        mkdir -p ${{ inputs.workdir }}/scripts
+        git clone ${{ inputs.cve_tests_repo_git }} ${{ inputs.workdir }}/scripts
+        chmod +x "${{ inputs.workdir }}/scripts/cve_scan.sh"
 
         echo "CVE scan script cloned successfully"
 
     - name: Run Deckhouse images CVE tests on ${{env.TAG}}
       env:
         TAG: ${{inputs.tag}}
-        SCAN_SEVERAL_LATEST_RELEASES: "${{ inputs.scan_several_lastest_releases }}"
+        SCAN_SEVERAL_LATEST_RELEASES: "${{ inputs.scan_several_latest_releases }}"
         MODULE_NAME: "${{ inputs.module_name }}"
-        DECKHOUSE_PRIVATE_REPO: ${{ inputs.deckhouse_private_repo }}
         DEV_REGISTRY: ${{ inputs.dev_registry }}
         DEV_REGISTRY_USER: ${{ inputs.dev_registry_user }}
         DEV_REGISTRY_PASSWORD: ${{ inputs.dev_registry_password }}
         PROD_REGISTRY: ${{ inputs.prod_registry }}
         PROD_REGISTRY_USER: ${{ inputs.prod_registry_user }}
         PROD_REGISTRY_PASSWORD: ${{ inputs.prod_registry_password }}
-        CASE: "${{ inputs.case || 'external_modules' }}"
+        CASE: "external_modules"
         DD_URL: ${{ inputs.dd_url }}
         DD_TOKEN: ${{ inputs.dd_token }}
         COMMIT_TAG: ${{ github.ref_name }}
         COMMIT_SHA: ${{ github.sha }}
         EVENT_NAME: ${{ github.event_name }}
         SEVERITY: "${{ inputs.severity }}"
+        MODULE_PROD_REGISTRY_CUSTOM_PATH: "${{ inputs.module_prod_registry_custom_path }}"
+        MODULE_DEV_REGISTRY_CUSTOM_PATH: "${{ inputs.module_dev_registry_custom_path }}"
       run: |
         echo "⚓️ 🏎 Running Deckhouse images CVE tests on ${TAG}..."
-        ${{ env.WORKDIR }}/scripts/cve_scan.sh
+        ${{ inputs.workdir }}/scripts/cve_scan.sh

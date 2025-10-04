@@ -10,17 +10,10 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      tag_type:
-        type: choice
-        description: Tag type
-        required: false
-        options:
-        - release
-        - dev
-      tag_name:
+      tag:
         description: "release version in semver minor format (example: 1.68) or specified tag from dev registry"
         required: false
-      scan_several_lastest_releases:
+      scan_several_latest_releases:
         description: 'Optional. Whether to scan last several releases or not. true/false. For scheduled pipelines it is always true. Default is: false.'
         required: false
       latest_releases_amount:
@@ -28,6 +21,12 @@ on:
         required: false
       severity:
         description: 'Optional. Vulnerabilities severity to scan. Default is: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
+        required: false
+      module_prod_registry_custom_path:
+        description: 'Optional. Module custom path in prod registry. Example: flant/modules'
+        required: false
+      module_dev_registry_custom_path:
+        description: 'Optional. Module custom path in dev registry. Example: flant/modules'
         required: false
 
 jobs:
@@ -49,18 +48,19 @@ jobs:
           dev_registry: ${{ secrets.DEV_REGISTRY }}
           dev_registry_user: ${{ secrets.DEV_REGISTRY_LOGIN }}
           dev_registry_password: ${{ secrets.DEV_REGISTRY_PASSWORD }}
-          deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
+          cve_tests_repo_git: ${{ secrets.CVE_TESTS_REPO_GIT }}
+          cve_tests_repo_ssh_private_key: ${{ secrets.CVE_TESTS_SSH_PRIVATE_KEY }}
+          workdir: ${{ vars.CVE_SCAN_WORKDIR }}
           severity: "HIGH,CRITICAL"
-  cve_scan:
-    if: github.event_name != 'pull_request'
-    name: Regular CVE scan
+  cve_scan_workflow_dispatch:
+    if: github.event_name == 'workflow_dispatch'
+    name: CVE scan for workflow_dispatch
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: deckhouse/modules-actions/cve_scan@v5
         with:
-          tag: ${{ github.event.inputs.tag_name || github.event.repository.default_branch }}
-          tag_type: ${{ github.event.inputs.tag_type }}
+          tag: ${{ github.event.inputs.tag || github.event.repository.default_branch }}
           module_name: ${{ vars.MODULE_NAME }}
           dd_url: ${{ secrets.DEFECTDOJO_HOST }}
           dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
@@ -70,7 +70,32 @@ jobs:
           dev_registry: ${{ secrets.DEV_REGISTRY }}
           dev_registry_user: ${{ secrets.DEV_REGISTRY_LOGIN }}
           dev_registry_password: ${{ secrets.DEV_REGISTRY_PASSWORD }}
-          deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
-          scan_several_lastest_releases: ${{ github.event.inputs.scan_several_lastest_releases }}
+          cve_tests_repo_git: ${{ secrets.CVE_TESTS_REPO_GIT }}
+          cve_tests_repo_ssh_private_key: ${{ secrets.CVE_TESTS_SSH_PRIVATE_KEY }}
+          workdir: ${{ vars.CVE_SCAN_WORKDIR }}
+          scan_several_latest_releases: ${{ github.event.inputs.scan_several_latest_releases }}
           latest_releases_amount: ${{ github.event.inputs.latest_releases_amount || '3' }}
           severity: ${{ github.event.inputs.severity }}
+          module_prod_registry_custom_path: ${{ github.event.inputs.module_prod_registry_custom_path }}
+          module_dev_registry_custom_path: ${{ github.event.inputs.module_dev_registry_custom_path }}
+  cve_scan:
+    if: github.event_name != 'pull_request'
+    name: Regular CVE scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: deckhouse/modules-actions/cve_scan@v5
+        with:
+          tag: ${{ github.event.inputs.tag || github.event.repository.default_branch }}
+          module_name: ${{ vars.MODULE_NAME }}
+          dd_url: ${{ secrets.DEFECTDOJO_HOST }}
+          dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
+          prod_registry: ${{ secrets.PROD_READ_REGISTRY }}
+          prod_registry_user: ${{ secrets.PROD_READ_REGISTRY_LOGIN }}
+          prod_registry_password: ${{ secrets.PROD_READ_REGISTRY_PASSWORD }}
+          dev_registry: ${{ secrets.DEV_REGISTRY }}
+          dev_registry_user: ${{ secrets.DEV_REGISTRY_LOGIN }}
+          dev_registry_password: ${{ secrets.DEV_REGISTRY_PASSWORD }}
+          cve_tests_repo_git: ${{ secrets.CVE_TESTS_REPO_GIT }}
+          cve_tests_repo_ssh_private_key: ${{ secrets.CVE_TESTS_SSH_PRIVATE_KEY }}
+          workdir: ${{ vars.CVE_SCAN_WORKDIR }}
