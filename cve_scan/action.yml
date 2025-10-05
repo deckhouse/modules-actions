@@ -31,9 +31,6 @@ inputs:
   dev_registry_password:
     description: 'Password to log in to deckhouse dev registry'
     required: true
-  case:
-    description: 'Case to scan'
-    required: true
   cve_tests_repo_git:
     description: 'CVE tests repo git'
     required: true
@@ -68,6 +65,7 @@ runs:
           ssh-private-key: |
             ${{ inputs.cve_tests_repo_ssh_private_key }}
     - name: Add ssh_known_hosts
+      shell: bash
       run: |
         HOST=$(grep -oP '(?<=@)[^/:]+' <<< ${{ inputs.cve_tests_repo_git }})
         echo "::add-mask::$HOST"
@@ -86,6 +84,7 @@ runs:
         done <<< "$HOST_KEYS"
 
     - name: Download CVE scan script from private GitLab
+      shell: bash
       run: |
         echo "Cloning CVE scan script from private GitLab..."
 
@@ -96,6 +95,7 @@ runs:
         echo "CVE scan script cloned successfully"
 
     - name: Run Deckhouse images CVE tests on ${{env.TAG}}
+      shell: bash
       env:
         TAG: ${{inputs.tag}}
         SCAN_SEVERAL_LATEST_RELEASES: "${{ inputs.scan_several_latest_releases }}"
