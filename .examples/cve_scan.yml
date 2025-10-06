@@ -50,7 +50,6 @@ jobs:
           dev_registry_password: ${{ secrets.DEV_REGISTRY_PASSWORD }}
           cve_tests_repo_git: ${{ secrets.CVE_TESTS_REPO_GIT }}
           cve_tests_repo_ssh_private_key: ${{ secrets.CVE_TESTS_SSH_PRIVATE_KEY }}
-          workdir: ${{ vars.CVE_SCAN_WORKDIR }}
           severity: "HIGH,CRITICAL"
   cve_scan_workflow_dispatch:
     if: github.event_name == 'workflow_dispatch'
@@ -72,7 +71,6 @@ jobs:
           dev_registry_password: ${{ secrets.DEV_REGISTRY_PASSWORD }}
           cve_tests_repo_git: ${{ secrets.CVE_TESTS_REPO_GIT }}
           cve_tests_repo_ssh_private_key: ${{ secrets.CVE_TESTS_SSH_PRIVATE_KEY }}
-          workdir: ${{ vars.CVE_SCAN_WORKDIR }}
           scan_several_latest_releases: ${{ github.event.inputs.scan_several_latest_releases }}
           latest_releases_amount: ${{ github.event.inputs.latest_releases_amount || '3' }}
           severity: ${{ github.event.inputs.severity }}
@@ -98,4 +96,3 @@ jobs:
           dev_registry_password: ${{ secrets.DEV_REGISTRY_PASSWORD }}
           cve_tests_repo_git: ${{ secrets.CVE_TESTS_REPO_GIT }}
           cve_tests_repo_ssh_private_key: ${{ secrets.CVE_TESTS_SSH_PRIVATE_KEY }}
-          workdir: ${{ vars.CVE_SCAN_WORKDIR }}

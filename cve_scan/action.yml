@@ -52,9 +52,6 @@ inputs:
   module_dev_registry_custom_path:
     description: 'Module custom path in dev registry. Example: flant/modules'
     required: false
-  workdir:
-    description: 'Workdir'
-    required: false
 
 runs:
   using: "composite"
@@ -88,9 +85,9 @@ runs:
       run: |
         echo "Cloning CVE scan script from private GitLab..."
 
-        mkdir -p ${{ inputs.workdir }}/scripts
-        git clone ${{ inputs.cve_tests_repo_git }} ${{ inputs.workdir }}/scripts
-        chmod +x "${{ inputs.workdir }}/scripts/cve_scan.sh"
+        mkdir -p cve-scan/scripts
+        git clone ${{ inputs.cve_tests_repo_git }} cve-scan/scripts
+        chmod +x "cve-scan/scripts/cve_scan.sh"
 
         echo "CVE scan script cloned successfully"
 
@@ -115,6 +112,7 @@ runs:
         SEVERITY: "${{ inputs.severity }}"
         MODULE_PROD_REGISTRY_CUSTOM_PATH: "${{ inputs.module_prod_registry_custom_path }}"
         MODULE_DEV_REGISTRY_CUSTOM_PATH: "${{ inputs.module_dev_registry_custom_path }}"
+        WORKDIR: "cve-scan"
       run: |
         echo "⚓️ 🏎 Running Deckhouse images CVE tests on ${TAG}..."
-        ${{ inputs.workdir }}/scripts/cve_scan.sh
+        cve-scan/scripts/cve_scan.sh
