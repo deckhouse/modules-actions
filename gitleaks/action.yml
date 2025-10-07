@@ -1,11 +1,15 @@
 name: "Gitleaks scan"
-description: "Run Gitleaks in full or diff mode (composite action, fixed version/config/limit)"
+description: "Run Gitleaks in full or diff mode (composite action, configurable version)"
 
 inputs:
   scan_mode:
     description: "Scan mode: full | diff"
     required: false
     default: "full"
+  gitleaks_version:
+    description: "Gitleaks version to install"
+    required: false
+    default: "v8.28.0"
 
 runs:
   using: "composite"
@@ -15,11 +19,11 @@ runs:
       with:
         fetch-depth: 0
 
-    - name: Install Gitleaks v8.28.0
+    - name: Install Gitleaks
       shell: bash
       run: |
         set -euo pipefail
-        ver="v8.28.0"
+        ver="${{ inputs.gitleaks_version }}"
         file_ver="${ver#v}"
 
         arch="$(uname -m)"
@@ -32,7 +36,7 @@ runs:
         base="https://github.com/gitleaks/gitleaks/releases/download/${ver}"
         tgz="gitleaks_${file_ver}_${pkg_arch}.tar.gz"
 
-        echo "Downloading: $base/$tgz"
+        echo "📥 Installing Gitleaks $ver..."
         curl -sSL "$base/$tgz" -o gitleaks.tgz
         tar -xzf gitleaks.tgz gitleaks
         chmod +x gitleaks
@@ -50,13 +54,17 @@ runs:
         command -v gitleaks
         gitleaks version
 
-    - name: Ensure config exists (.github/gitleaks.toml)
+    - name: Check for optional config
+      id: config
       shell: bash
       run: |
         set -euo pipefail
-        if [[ ! -f ".github/gitleaks.toml" ]]; then
-          echo "Required config '.github/gitleaks.toml' is missing. Please add it to the repo." >&2
-          exit 1
+        if [[ -f "gitleaks.toml" ]]; then
+          echo "config_arg=-c gitleaks.toml" >> "$GITHUB_OUTPUT"
+          echo "✅ Found config: gitleaks.toml"
+        else
+          echo "config_arg=" >> "$GITHUB_OUTPUT"
+          echo "⚠️ Config file not found. Proceeding with default rules."
         fi
 
     - name: Compute base SHA (diff mode on PR)
@@ -74,10 +82,11 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        echo "▶ Running full scan with .github/gitleaks.toml"
+        CONFIG_ARG="${{ steps.config.outputs.config_arg }}"
+        echo "🕵️ Running full scan..."
         gitleaks detect --no-banner \
           --report-format json --report-path gitleaks.json \
-          -c ".github/gitleaks.toml" \
+          $CONFIG_ARG \
           --source .
 
     - name: Gitleaks detect (diff PR)
@@ -85,15 +94,16 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
+        CONFIG_ARG="${{ steps.config.outputs.config_arg }}"
         BASE_SHA="${{ steps.base.outputs.base_sha }}"
         if [[ -z "$BASE_SHA" ]]; then
-          echo "Base SHA not found; falling back to full scan"
+          echo "❌ Base SHA not found; falling back to full scan"
           exit 2
         fi
-        echo "▶ Running diff scan $BASE_SHA...HEAD with .github/gitleaks.toml"
+        echo "🕵️ Running diff scan $BASE_SHA...HEAD..."
         gitleaks detect --no-banner \
           --report-format json --report-path gitleaks.json \
-          -c ".github/gitleaks.toml" \
+          $CONFIG_ARG \
           --source . --log-opts "$BASE_SHA...HEAD"
 
     - name: Print findings (always)
