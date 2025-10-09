@@ -308,7 +308,7 @@ runs:
         }
 
         if [[ $(send "[[ -d /${SVACE_ANALYZE_DIR}/${CI_COMMIT_HASH} ]] && echo true || echo false") == false ]]; then
-          echo "::warning file=$(realpath "$0")::Specified commit directory doesn't exists on analyze server." && exit 0
+          echo "::warning file=$(realpath "$0")::Specified commit directory doesn't exists on analyze server." && exit 1
         fi
 
         projects=$(send "find /${SVACE_ANALYZE_DIR}/${CI_COMMIT_HASH} \\( -type d -iname .svace-dir -o -iname *.tar.gz \\) -exec dirname {} \\;")
