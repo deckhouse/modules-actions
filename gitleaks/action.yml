@@ -1,0 +1,162 @@
+name: "Gitleaks scan"
+description: "Run Gitleaks in full or diff mode (composite action, configurable version)"
+
+inputs:
+  scan_mode:
+    description: "Scan mode: full | diff"
+    required: false
+    default: "full"
+  gitleaks_version:
+    description: "Gitleaks version to install"
+    required: false
+    default: "v8.28.0"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Install Gitleaks
+      shell: bash
+      run: |
+        set -euo pipefail
+        ver="${{ inputs.gitleaks_version }}"
+        file_ver="${ver#v}"
+
+        arch="$(uname -m)"
+        case "$arch" in
+          x86_64|amd64)  pkg_arch="linux_x64" ;;
+          aarch64|arm64) pkg_arch="linux_arm64" ;;
+          *) echo "Unsupported arch: $arch"; exit 1 ;;
+        esac
+
+        base="https://github.com/gitleaks/gitleaks/releases/download/${ver}"
+        tgz="gitleaks_${file_ver}_${pkg_arch}.tar.gz"
+
+        echo "📥 Installing Gitleaks $ver..."
+        curl -sSL "$base/$tgz" -o gitleaks.tgz
+        tar -xzf gitleaks.tgz gitleaks
+        chmod +x gitleaks
+
+        install_dir="$HOME/.local/bin"
+        mkdir -p "$install_dir"
+        mv gitleaks "$install_dir/gitleaks"
+        echo "$install_dir" >> "$GITHUB_PATH"
+        "$install_dir/gitleaks" version
+
+    - name: Sanity check PATH (should find gitleaks)
+      shell: bash
+      run: |
+        set -euo pipefail
+        command -v gitleaks
+        gitleaks version
+
+    - name: Check for optional config
+      id: config
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ -f "gitleaks.toml" ]]; then
+          echo "config_arg=-c gitleaks.toml" >> "$GITHUB_OUTPUT"
+          echo "✅ Found config: gitleaks.toml"
+        else
+          echo "config_arg=" >> "$GITHUB_OUTPUT"
+          echo "⚠️ Config file not found. Proceeding with default rules."
+        fi
+
+    - name: Compute base SHA (diff mode on PR)
+      id: base
+      if: ${{ inputs.scan_mode == 'diff' && github.event_name == 'pull_request' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        git fetch origin "${GITHUB_BASE_REF}:${GITHUB_BASE_REF}" --depth=0 || true
+        BASE_SHA=$(git merge-base HEAD "origin/${GITHUB_BASE_REF}")
+        echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+
+    - name: Gitleaks detect (full)
+      if: ${{ inputs.scan_mode == 'full' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        CONFIG_ARG="${{ steps.config.outputs.config_arg }}"
+        echo "🕵️ Running full scan..."
+        gitleaks detect --no-banner \
+          --report-format json --report-path gitleaks.json \
+          $CONFIG_ARG \
+          --source .
+
+    - name: Gitleaks detect (diff PR)
+      if: ${{ inputs.scan_mode == 'diff' && github.event_name == 'pull_request' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        CONFIG_ARG="${{ steps.config.outputs.config_arg }}"
+        BASE_SHA="${{ steps.base.outputs.base_sha }}"
+        if [[ -z "$BASE_SHA" ]]; then
+          echo "❌ Base SHA not found; falling back to full scan"
+          exit 2
+        fi
+        echo "🕵️ Running diff scan $BASE_SHA...HEAD..."
+        gitleaks detect --no-banner \
+          --report-format json --report-path gitleaks.json \
+          $CONFIG_ARG \
+          --source . --log-opts "$BASE_SHA...HEAD"
+
+    - name: Print findings (always)
+      if: always()
+      shell: bash
+      run: |
+        set -euo pipefail
+        [[ -f gitleaks.json ]] || { echo "No gitleaks.json produced"; exit 0; }
+        LIMIT=200
+        REPO_URL="${{ github.server_url }}/${{ github.repository }}"
+
+        JQ_FILTER='
+          def norm:
+            {
+              file: (.File // .file // .Target // .Location.File // ""),
+              line: (.StartLine // .Line // .Location.StartLine // 0),
+              rule: (.RuleID // .Rule // .Description // ""),
+              commit: (.Commit // .commit // "")
+            };
+          (if type=="object" and has("findings") then .findings
+           elif type=="array" then .
+           else [] end)[] | norm
+        '
+
+        COUNT=$(jq -r 'if type=="object" and has("findings") then (.findings|length)
+                       elif type=="array" then length else 0 end' gitleaks.json)
+
+        echo "Findings: $COUNT"
+        echo "### Gitleaks findings (showing up to $LIMIT) :closed_lock_with_key:" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo "| Rule | File:Line | Commit | Link |" >> "$GITHUB_STEP_SUMMARY"
+        echo "|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+
+        jq -r "$JQ_FILTER | [.rule, (.file+\":\"+(.line|tostring)), (.commit[0:7]),
+               (if (.commit|length)>0 and (.file|length)>0 and (.line|tonumber)>0
+                then \"$REPO_URL/blob/\"+.commit+\"/\"+.file+\"#L\"+(.line|tostring)
+                else \"\" end)]
+              | @tsv" gitleaks.json \
+          | head -n "$LIMIT" \
+          | while IFS=$'\t' read -r rule loc sha link; do
+              printf '• %s %s %s %s\n' "[$rule]" "$loc" "$sha" "$link"
+              printf '| `%s` | `%s` | `%s` | %s |\n' "$rule" "$loc" "$sha" "${link:-"-"}" >> "$GITHUB_STEP_SUMMARY"
+            done
+
+        if (( COUNT > LIMIT )); then
+          MORE=$((COUNT - LIMIT))
+          echo "... and $MORE more (see artifact gitleaks-report)." | tee -a "$GITHUB_STEP_SUMMARY"
+        fi
+
+    - name: Upload report (always)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: gitleaks-report
+        path: gitleaks.json
+        if-no-files-found: ignore
