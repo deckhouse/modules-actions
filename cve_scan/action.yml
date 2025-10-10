@@ -122,7 +122,6 @@ runs:
             --retry-all-errors \
             ${DD_URL}/api/v2/reimport-scan/ \
             -H "accept: application/json" \
-            -H "Content-Type: multipart/form-data"  \
             -H "Authorization: Token ${DD_TOKEN}" \
             -F "auto_create_context=True" \
             -F "minimum_severity=Info" \
