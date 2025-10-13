@@ -67,9 +67,9 @@ runs:
           echo "⚠️ Config file not found. Proceeding with default rules."
         fi
 
-    - name: Compute base SHA (diff mode on PR)
+    - name: Compute base SHA (diff mode)
       id: base
-      if: ${{ inputs.scan_mode == 'diff' && github.event_name == 'pull_request' }}
+      if: ${{ inputs.scan_mode == 'diff' }}
       shell: bash
       run: |
         set -euo pipefail
@@ -89,8 +89,8 @@ runs:
           $CONFIG_ARG \
           --source .
 
-    - name: Gitleaks detect (diff PR)
-      if: ${{ inputs.scan_mode == 'diff' && github.event_name == 'pull_request' }}
+    - name: Gitleaks detect (diff)
+      if: ${{ inputs.scan_mode == 'diff' }}
       shell: bash
       run: |
         set -euo pipefail
