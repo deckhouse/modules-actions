@@ -132,7 +132,7 @@ runs:
                        elif type=="array" then length else 0 end' gitleaks.json)
 
         echo "Findings: $COUNT"
-        echo "### Gitleaks findings (showing up to $LIMIT) :closed_lock_with_key:" >> "$GITHUB_STEP_SUMMARY"
+        echo "### Secret findings :closed_lock_with_key:" >> "$GITHUB_STEP_SUMMARY"
         echo "" >> "$GITHUB_STEP_SUMMARY"
         echo "| Rule | File:Line | Commit | Link |" >> "$GITHUB_STEP_SUMMARY"
         echo "|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
