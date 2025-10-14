@@ -10,14 +10,29 @@ inputs:
     description: "Gitleaks version to install"
     required: false
     default: "v8.28.0"
+  checkout_repo:
+    description: "owner/repo to checkout (PR head)"
+    required: false
+    default: "${{ github.repository }}"
+  checkout_ref:
+    description: "ref/sha to checkout (PR head SHA)"
+    required: false
+    default: ""
+  base_sha:
+    description: "Base SHA for diff (PR base SHA)"
+    required: false
+    default: ""
 
 runs:
   using: "composite"
   steps:
-    - name: Checkout repository
+    - name: Checkout (PR head or default)
       uses: actions/checkout@v4
       with:
+        repository: ${{ inputs.checkout_repo }}
+        ref: ${{ inputs.checkout_ref }}
         fetch-depth: 0
+        persist-credentials: false
 
     - name: Install Gitleaks
       shell: bash
@@ -73,9 +88,21 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        git fetch origin "${GITHUB_BASE_REF}:${GITHUB_BASE_REF}" --depth=0 || true
-        BASE_SHA=$(git merge-base HEAD "origin/${GITHUB_BASE_REF}")
-        echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+        if [[ -n "${{ inputs.base_sha }}" ]]; then
+          echo "Using provided BASE_SHA: ${{ inputs.base_sha }}"
+          echo "base_sha=${{ inputs.base_sha }}" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
+          # fetch the base branch tip to resolve its SHA
+          git fetch --no-tags origin "${GITHUB_BASE_REF}:${GITHUB_BASE_REF}"
+          BASE_SHA="$(git rev-parse "origin/${GITHUB_BASE_REF}")"
+          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
+        else
+          echo "❌ Base SHA not found; falling back to full scan"
+          exit 2
+        fi
 
     - name: Gitleaks detect (full)
       if: ${{ inputs.scan_mode == 'full' }}
