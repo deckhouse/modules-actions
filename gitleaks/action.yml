@@ -69,7 +69,6 @@ runs:
           echo "⚠️ Config file not found. Proceeding with default rules."
         fi
 
-    # --- DIFF CONTEXT COLLECTION (only when scan_mode=diff) ---
     - name: Collect PR patch (files & added lines)
       id: prpatch
       if: ${{ inputs.scan_mode == 'diff' }}
@@ -134,7 +133,6 @@ runs:
         echo "src_dir=${SRC_DIR}" >> "$GITHUB_OUTPUT"
         echo "patch_map=${PATCH_JSON}" >> "$GITHUB_OUTPUT"
 
-    # --- DETECT ---
     - name: Gitleaks detect (full)
       if: ${{ inputs.scan_mode == 'full' }}
       shell: bash
@@ -162,7 +160,6 @@ runs:
           $CONFIG_ARG \
           --source "${SRC}"
 
-    # --- FILTER TO ADDED LINES (diff only) ---
     - name: Filter findings by added lines (patch)
       if: ${{ inputs.scan_mode == 'diff' }}
       shell: bash
@@ -195,7 +192,6 @@ runs:
         mv gitleaks.filtered.json gitleaks.json
         echo "Filtered to added lines."
 
-    # --- SINGLE, UNIFIED OUTPUT (ALWAYS) ---
     - name: Print findings (always)
       if: always()
       shell: bash
@@ -225,11 +221,9 @@ runs:
                        elif type=="array" then length else 0 end' gitleaks.json)
         echo "Findings: $COUNT"
 
-        # stdout (up to LIMIT)
         jq -r "$JQ_FILTER | [.rule, .file, (.line|tostring), (.commit // \"\")] | @tsv" gitleaks.json \
           | head -n "$LIMIT" \
           | while IFS=$'\t' read -r rule file line commit; do
-              # repo-relative path: strip temp tree prefix for diff mode
               rel="$file"
               if [[ -n "${SRC_DIR:-}" && "$file" == "${SRC_DIR%/}/"* ]]; then
                 rel="${file#${SRC_DIR%/}/}"
@@ -242,9 +236,8 @@ runs:
               printf '• %s %s %s %s\n' "[$rule]" "${rel}:${line}" "${sha:0:7}" "${link}"
             done
 
-        # summary (single table)
         {
-          echo "### Gitleaks findings (showing up to $LIMIT) :closed_lock_with_key:"
+           echo "### Secret findings :closed_lock_with_key:"
           echo
           echo "| Rule | File:Line | Commit | Link |"
           echo "|---|---|---|---|"
@@ -270,7 +263,6 @@ runs:
           fi
         } >> "$GITHUB_STEP_SUMMARY"
 
-        # non-zero exit if any findings remain
         if (( COUNT > 0 )); then
           exit 1
         fi
