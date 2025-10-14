@@ -82,9 +82,9 @@ runs:
           echo "⚠️ Config file not found. Proceeding with default rules."
         fi
 
-    - name: Compute base SHA (diff mode)
+    - name: Compute base SHA (full mode with history)
       id: base
-      if: ${{ inputs.scan_mode == 'diff' }}
+      if: ${{ inputs.scan_mode == 'full' }}
       shell: bash
       run: |
         set -euo pipefail
@@ -100,8 +100,7 @@ runs:
           BASE_SHA="$(git rev-parse "origin/${GITHUB_BASE_REF}")"
           echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
         else
-          echo "❌ Base SHA not found; falling back to full scan"
-          exit 2
+          echo "⚠️ Base SHA not found; scanning full repository"
         fi
 
     - name: Gitleaks detect (full)
@@ -116,22 +115,17 @@ runs:
           $CONFIG_ARG \
           --source .
 
-    - name: Gitleaks detect (diff)
+    - name: Gitleaks detect (diff / tree-only)
       if: ${{ inputs.scan_mode == 'diff' }}
       shell: bash
       run: |
         set -euo pipefail
         CONFIG_ARG="${{ steps.config.outputs.config_arg }}"
-        BASE_SHA="${{ steps.base.outputs.base_sha }}"
-        if [[ -z "$BASE_SHA" ]]; then
-          echo "❌ Base SHA not found; falling back to full scan"
-          exit 2
-        fi
-        echo "🕵️ Running diff scan $BASE_SHA...HEAD..."
-        gitleaks detect --no-banner \
+        echo "🕵️ Running tree-only diff scan (no git history)..."
+        gitleaks detect --no-banner --no-git \
           --report-format json --report-path gitleaks.json \
           $CONFIG_ARG \
-          --source . --log-opts "$BASE_SHA...HEAD"
+          --source .
 
     - name: Print findings (always)
       if: always()
