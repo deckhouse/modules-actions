@@ -82,26 +82,78 @@ runs:
           echo "⚠️ Config file not found. Proceeding with default rules."
         fi
 
-    - name: Compute base SHA (full mode with history)
-      id: base
-      if: ${{ inputs.scan_mode == 'full' }}
+    - name: Collect PR patch (files & added lines)
+      id: prpatch
+      if: ${{ inputs.scan_mode == 'diff' }}
       shell: bash
       run: |
         set -euo pipefail
-        if [[ -n "${{ inputs.base_sha }}" ]]; then
-          echo "Using provided BASE_SHA: ${{ inputs.base_sha }}"
-          echo "base_sha=${{ inputs.base_sha }}" >> "$GITHUB_OUTPUT"
+
+        # 1) Определяем HEAD/BASE
+        HEAD_SHA="$(git rev-parse HEAD)"
+        BASE_SHA="${{ inputs.base_sha }}"
+        if [[ -z "${BASE_SHA}" && -n "${GITHUB_BASE_REF:-}" ]]; then
+          git fetch --no-tags origin "${GITHUB_BASE_REF}:${GITHUB_BASE_REF}"
+          BASE_SHA="$(git rev-parse "origin/${GITHUB_BASE_REF}")"
+        fi
+        if [[ -z "${BASE_SHA}" ]]; then
+          echo "No BASE SHA for PR; empty patch."
+          echo "src_dir=" >> "$GITHUB_OUTPUT"
+          echo "patch_map=" >> "$GITHUB_OUTPUT"
           exit 0
         fi
 
-        if [[ -n "${GITHUB_BASE_REF:-}" ]]; then
-          # fetch the base branch tip to resolve its SHA
-          git fetch --no-tags origin "${GITHUB_BASE_REF}:${GITHUB_BASE_REF}"
-          BASE_SHA="$(git rev-parse "origin/${GITHUB_BASE_REF}")"
-          echo "base_sha=$BASE_SHA" >> "$GITHUB_OUTPUT"
-        else
-          echo "⚠️ Base SHA not found; scanning full repository"
+        # 2) Только добавленные/изменённые/переименованные файлы (без удалённых)
+        mapfile -t FILES < <(git diff --name-only --diff-filter=AMR "${BASE_SHA}" "${HEAD_SHA}")
+
+        # Пустой патч? — выходим мягко.
+        if (( ${#FILES[@]} == 0 )); then
+          echo "No changed files."
+          echo "src_dir=" >> "$GITHUB_OUTPUT"
+          echo "patch_map=" >> "$GITHUB_OUTPUT"
+          exit 0
         fi
+
+        # 3) Готовим tmp-дерево только из изменённых файлов
+        SRC_DIR="$(mktemp -d)"
+        for f in "${FILES[@]}"; do
+          [[ -f "$f" ]] || continue
+          mkdir -p "${SRC_DIR}/$(dirname "$f")"
+          # сохраняем относительные пути
+          cp "$f" "${SRC_DIR}/$f"
+        done
+
+        # 4) Собираем «карту добавленных строк» по каждому файлу (для пост-фильтра находок)
+        # Формат: JSON { "file": [[start,end], ...], ... }
+        PATCH_JSON="$(mktemp)"
+        echo '{}' > "$PATCH_JSON"
+
+        # В zero-context диффе каждая добавка даёт @@ -a,b +c,d @@
+        # Возьмём только плюсовые hunks (+c,d)
+        while IFS= read -r file; do
+          # извлекаем hunks только для этого файла, только добавленные строки
+          HUNKS="$(git diff --unified=0 "${BASE_SHA}" "${HEAD_SHA}" -- "$file" \
+            | awk '/^@@/ {print}' \
+            | sed -n 's/.*+\([0-9]\+\),\([0-9]\+\).*/\1 \2/p')"
+
+          # собираем массив диапазонов
+          RANGES=()
+          while read -r start count; do
+            [[ -z "${start:-}" || -z "${count:-}" ]] && continue
+            end=$((start + count - 1))
+            RANGES+=("[${start},${end}]")
+          done <<< "$HUNKS"
+
+          # пишем в JSON (если есть добавления)
+          if (( ${#RANGES[@]} > 0 )); then
+            jq --arg f "$file" --argjson arr "[$(IFS=,; echo "${RANGES[*]}")]" '. + {($f): $arr}' "$PATCH_JSON" > "$PATCH_JSON.tmp"
+            mv "$PATCH_JSON.tmp" "$PATCH_JSON"
+          fi
+        done <<< "$(printf '%s\n' "${FILES[@]}")"
+
+        echo "Collected ${#FILES[@]} files into: ${SRC_DIR}"
+        echo "src_dir=${SRC_DIR}" >> "$GITHUB_OUTPUT"
+        echo "patch_map=${PATCH_JSON}" >> "$GITHUB_OUTPUT"
 
     - name: Gitleaks detect (full)
       if: ${{ inputs.scan_mode == 'full' }}
@@ -115,17 +167,60 @@ runs:
           $CONFIG_ARG \
           --source .
 
-    - name: Gitleaks detect (diff / tree-only)
+    - name: Gitleaks detect (patch tree-only)
       if: ${{ inputs.scan_mode == 'diff' }}
       shell: bash
       run: |
         set -euo pipefail
+        SRC="${{ steps.prpatch.outputs.src_dir }}"
         CONFIG_ARG="${{ steps.config.outputs.config_arg }}"
-        echo "🕵️ Running tree-only diff scan (no git history)..."
+        if [[ -z "${SRC}" ]]; then
+          echo "No patch to scan."
+          touch gitleaks.json
+          echo "[]" > gitleaks.json
+          exit 0
+        fi
+
+        echo "🕵️ Scanning PR patch (tree-only) in ${SRC}..."
         gitleaks detect --no-banner --no-git \
           --report-format json --report-path gitleaks.json \
           $CONFIG_ARG \
-          --source .
+          --source "${SRC}"
+
+    - name: Filter findings by added lines (patch)
+      if: ${{ inputs.scan_mode == 'diff' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        PATCH_MAP="${{ steps.prpatch.outputs.patch_map }}"
+        [[ -f "gitleaks.json" ]] || { echo "No gitleaks.json"; exit 0; }
+
+        # Если нет карты — значит нет добавлений, делаем отчёт пустым
+        if [[ -z "$PATCH_MAP" || ! -s "$PATCH_MAP" ]]; then
+          echo "[]" > gitleaks.json
+          exit 0
+        fi
+
+        # JQ-фильтр: пропускаем только совпадения, линия которых входит в любой диапазон файла
+        jq --argfile map "$PATCH_MAP" '
+          def norm:
+            if type=="object" and has("findings") then .findings
+            elif type=="array" then .
+            else [] end;
+
+          norm
+          | map(
+              . as $f
+              | ($f.File // $f.file // $f.Target // $f.Location.File // "") as $file
+              | ($f.StartLine // $f.Line // $f.Location.StartLine // 0) as $line
+              | if ($map[$file] // empty) as $ranges
+                | any($ranges[]; $line >= .[0] and $line <= .[1])
+                then $f else empty end
+            )
+        ' gitleaks.json > gitleaks.filtered.json
+
+        mv gitleaks.filtered.json gitleaks.json
+        echo "Filtered findings to only added lines in PR patch"
 
     - name: Print findings (always)
       if: always()
