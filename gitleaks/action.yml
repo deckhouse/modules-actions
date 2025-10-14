@@ -89,7 +89,6 @@ runs:
       run: |
         set -euo pipefail
 
-        # 1) Определяем HEAD/BASE
         HEAD_SHA="$(git rev-parse HEAD)"
         BASE_SHA="${{ inputs.base_sha }}"
         if [[ -z "${BASE_SHA}" && -n "${GITHUB_BASE_REF:-}" ]]; then
@@ -103,10 +102,8 @@ runs:
           exit 0
         fi
 
-        # 2) Только добавленные/изменённые/переименованные файлы (без удалённых)
         mapfile -t FILES < <(git diff --name-only --diff-filter=AMR "${BASE_SHA}" "${HEAD_SHA}")
 
-        # Пустой патч? — выходим мягко.
         if (( ${#FILES[@]} == 0 )); then
           echo "No changed files."
           echo "src_dir=" >> "$GITHUB_OUTPUT"
@@ -114,29 +111,21 @@ runs:
           exit 0
         fi
 
-        # 3) Готовим tmp-дерево только из изменённых файлов
         SRC_DIR="$(mktemp -d)"
         for f in "${FILES[@]}"; do
           [[ -f "$f" ]] || continue
           mkdir -p "${SRC_DIR}/$(dirname "$f")"
-          # сохраняем относительные пути
           cp "$f" "${SRC_DIR}/$f"
         done
 
-        # 4) Собираем «карту добавленных строк» по каждому файлу (для пост-фильтра находок)
-        # Формат: JSON { "file": [[start,end], ...], ... }
         PATCH_JSON="$(mktemp)"
         echo '{}' > "$PATCH_JSON"
 
-        # В zero-context диффе каждая добавка даёт @@ -a,b +c,d @@
-        # Возьмём только плюсовые hunks (+c,d)
         while IFS= read -r file; do
-          # извлекаем hunks только для этого файла, только добавленные строки
           HUNKS="$(git diff --unified=0 "${BASE_SHA}" "${HEAD_SHA}" -- "$file" \
             | awk '/^@@/ {print}' \
             | sed -n 's/.*+\([0-9]\+\),\([0-9]\+\).*/\1 \2/p')"
 
-          # собираем массив диапазонов
           RANGES=()
           while read -r start count; do
             [[ -z "${start:-}" || -z "${count:-}" ]] && continue
@@ -144,7 +133,6 @@ runs:
             RANGES+=("[${start},${end}]")
           done <<< "$HUNKS"
 
-          # пишем в JSON (если есть добавления)
           if (( ${#RANGES[@]} > 0 )); then
             jq --arg f "$file" --argjson arr "[$(IFS=,; echo "${RANGES[*]}")]" '. + {($f): $arr}' "$PATCH_JSON" > "$PATCH_JSON.tmp"
             mv "$PATCH_JSON.tmp" "$PATCH_JSON"
@@ -195,13 +183,11 @@ runs:
         PATCH_MAP_PATH="${{ steps.prpatch.outputs.patch_map }}"
         [[ -f "gitleaks.json" ]] || { echo "No gitleaks.json"; exit 0; }
 
-        # Нет карты — нет добавлений => пустой отчёт
         if [[ -z "${PATCH_MAP_PATH}" || ! -s "${PATCH_MAP_PATH}" ]]; then
           echo "[]" > gitleaks.json
           exit 0
         fi
 
-        # Читаем карту и прокидываем её как argjson (без --argfile)
         MAP_JSON="$(cat "${PATCH_MAP_PATH}")"
 
         jq --argjson map "${MAP_JSON}" '
