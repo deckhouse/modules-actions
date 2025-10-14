@@ -40,33 +40,20 @@ runs:
         set -euo pipefail
         ver="${{ inputs.gitleaks_version }}"
         file_ver="${ver#v}"
-
         arch="$(uname -m)"
         case "$arch" in
           x86_64|amd64)  pkg_arch="linux_x64" ;;
           aarch64|arm64) pkg_arch="linux_arm64" ;;
           *) echo "Unsupported arch: $arch"; exit 1 ;;
         esac
-
         base="https://github.com/gitleaks/gitleaks/releases/download/${ver}"
         tgz="gitleaks_${file_ver}_${pkg_arch}.tar.gz"
-
-        echo "📥 Installing Gitleaks $ver..."
         curl -sSL "$base/$tgz" -o gitleaks.tgz
         tar -xzf gitleaks.tgz gitleaks
         chmod +x gitleaks
-
-        install_dir="$HOME/.local/bin"
-        mkdir -p "$install_dir"
+        install_dir="$HOME/.local/bin"; mkdir -p "$install_dir"
         mv gitleaks "$install_dir/gitleaks"
         echo "$install_dir" >> "$GITHUB_PATH"
-        "$install_dir/gitleaks" version
-
-    - name: Sanity check PATH (should find gitleaks)
-      shell: bash
-      run: |
-        set -euo pipefail
-        command -v gitleaks
         gitleaks version
 
     - name: Check for optional config
@@ -82,6 +69,7 @@ runs:
           echo "⚠️ Config file not found. Proceeding with default rules."
         fi
 
+    # --- DIFF CONTEXT COLLECTION (only when scan_mode=diff) ---
     - name: Collect PR patch (files & added lines)
       id: prpatch
       if: ${{ inputs.scan_mode == 'diff' }}
@@ -95,6 +83,10 @@ runs:
           git fetch --no-tags origin "${GITHUB_BASE_REF}:${GITHUB_BASE_REF}"
           BASE_SHA="$(git rev-parse "origin/${GITHUB_BASE_REF}")"
         fi
+
+        echo "head_sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
+        echo "base_sha=${BASE_SHA}" >> "$GITHUB_OUTPUT"
+
         if [[ -z "${BASE_SHA}" ]]; then
           echo "No BASE SHA for PR; empty patch."
           echo "src_dir=" >> "$GITHUB_OUTPUT"
@@ -103,7 +95,6 @@ runs:
         fi
 
         mapfile -t FILES < <(git diff --name-only --diff-filter=AMR "${BASE_SHA}" "${HEAD_SHA}")
-
         if (( ${#FILES[@]} == 0 )); then
           echo "No changed files."
           echo "src_dir=" >> "$GITHUB_OUTPUT"
@@ -134,22 +125,22 @@ runs:
           done <<< "$HUNKS"
 
           if (( ${#RANGES[@]} > 0 )); then
-            jq --arg f "$file" --argjson arr "[$(IFS=,; echo "${RANGES[*]}")]" '. + {($f): $arr}' "$PATCH_JSON" > "$PATCH_JSON.tmp"
+            jq --arg f "$file" --argjson arr "[$(IFS=,; echo "${RANGES[*]}")]" \
+               '. + {($f): $arr}' "$PATCH_JSON" > "$PATCH_JSON.tmp"
             mv "$PATCH_JSON.tmp" "$PATCH_JSON"
           fi
         done <<< "$(printf '%s\n' "${FILES[@]}")"
 
-        echo "Collected ${#FILES[@]} files into: ${SRC_DIR}"
         echo "src_dir=${SRC_DIR}" >> "$GITHUB_OUTPUT"
         echo "patch_map=${PATCH_JSON}" >> "$GITHUB_OUTPUT"
 
+    # --- DETECT ---
     - name: Gitleaks detect (full)
       if: ${{ inputs.scan_mode == 'full' }}
       shell: bash
       run: |
         set -euo pipefail
         CONFIG_ARG="${{ steps.config.outputs.config_arg }}"
-        echo "🕵️ Running full scan..."
         gitleaks detect --no-banner \
           --report-format json --report-path gitleaks.json \
           $CONFIG_ARG \
@@ -163,25 +154,22 @@ runs:
         SRC="${{ steps.prpatch.outputs.src_dir }}"
         CONFIG_ARG="${{ steps.config.outputs.config_arg }}"
         if [[ -z "${SRC}" ]]; then
-          echo "No patch to scan."
-          touch gitleaks.json
           echo "[]" > gitleaks.json
           exit 0
         fi
-
-        echo "🕵️ Scanning PR patch (tree-only) in ${SRC}..."
         gitleaks detect --no-banner --no-git \
           --report-format json --report-path gitleaks.json \
           $CONFIG_ARG \
           --source "${SRC}"
 
+    # --- FILTER TO ADDED LINES (diff only) ---
     - name: Filter findings by added lines (patch)
       if: ${{ inputs.scan_mode == 'diff' }}
       shell: bash
       run: |
         set -euo pipefail
         PATCH_MAP_PATH="${{ steps.prpatch.outputs.patch_map }}"
-        [[ -f "gitleaks.json" ]] || { echo "No gitleaks.json"; exit 0; }
+        [[ -f "gitleaks.json" ]] || { echo "[]">gitleaks.json; exit 0; }
 
         if [[ -z "${PATCH_MAP_PATH}" || ! -s "${PATCH_MAP_PATH}" ]]; then
           echo "[]" > gitleaks.json
@@ -191,12 +179,9 @@ runs:
         MAP_JSON="$(cat "${PATCH_MAP_PATH}")"
 
         jq --argjson map "${MAP_JSON}" '
-          def norm:
-            if type=="object" and has("findings") then .findings
-            elif type=="array" then .
-            else [] end;
-
-          norm
+          def arr: if type=="object" and has("findings") then .findings
+                   elif type=="array" then . else [] end;
+          arr
           | map(
               . as $f
               | ($f.File // $f.file // $f.Target // $f.Location.File // "") as $file
@@ -208,99 +193,27 @@ runs:
         ' gitleaks.json > gitleaks.filtered.json
 
         mv gitleaks.filtered.json gitleaks.json
-        echo "Filtered findings to only added lines in PR patch"
+        echo "Filtered to added lines."
 
-    - name: Print findings to stdout
-      if: ${{ inputs.scan_mode == 'diff' }}
+    # --- SINGLE, UNIFIED OUTPUT (ALWAYS) ---
+    - name: Print findings (always)
+      if: always()
       shell: bash
       env:
         SRC_DIR: ${{ steps.prpatch.outputs.src_dir }}
-      run: |
-        set -euo pipefail
-        [[ -f gitleaks.json ]] || { echo "No gitleaks.json"; exit 0; }
-
-        JQ_NORM='
-          def norm:
-            if type=="object" and has("findings") then .findings
-            elif type=="array" then .
-            else [] end;
-          norm
-          | map({
-              rule:   (.RuleID // .Rule // .Description // ""),
-              file:   (.File // .file // .Target // .Location.File // ""),
-              line:   (.StartLine // .Line // .Location.StartLine // 0),
-              commit: (.Commit // .commit // "")
-            })
-        '
-
-        COUNT="$(jq -r "$JQ_NORM | length" gitleaks.json)"
-        echo "Findings (stdout): $COUNT"
-
-        if [[ "$COUNT" -eq 0 ]]; then
-          echo "No leaks found in PR patch."
-          exit 0
-        fi
-
-        jq -r "$JQ_NORM | .[] | [.rule, .file, (.line|tostring), .commit] | @tsv" gitleaks.json \
-          | while IFS=$'\t' read -r rule file line commit; do
-              rel="${file#${SRC_DIR}/}"
-              printf '• [%s] %s:%s %s\n' "$rule" "${rel:-$file}" "$line" "${commit:-''}"
-            done
-
-    - name: Generate PR summary
-      if: ${{ inputs.scan_mode == 'diff' }}
-      shell: bash
-      env:
-        SRC_DIR: ${{ steps.prpatch.outputs.src_dir }}
+        HEAD_SHA: ${{ steps.prpatch.outputs.head_sha }}
         REPO_URL: ${{ github.server_url }}/${{ github.repository }}
       run: |
         set -euo pipefail
         [[ -f gitleaks.json ]] || { echo "No gitleaks.json produced"; exit 0; }
-
-        JQ_NORM='
-          def norm:
-            if type=="object" and has("findings") then .findings
-            elif type=="array" then .
-            else [] end;
-          norm
-          | map({
-              rule:   (.RuleID // .Rule // .Description // ""),
-              file:   (.File // .file // .Target // .Location.File // ""),
-              line:   (.StartLine // .Line // .Location.StartLine // 0),
-              commit: (.Commit // .commit // "")
-            })
-        '
-
-        COUNT="$(jq -r "$JQ_NORM | length" gitleaks.json)"
-        echo "Findings: $COUNT"
-
-        {
-          echo "### Secret findings :closed_lock_with_key:"
-          echo
-          echo "| Rule | File:Line | Commit | Link |"
-          echo "|---|---|---|---|"
-          jq -r "$JQ_NORM | .[] | [.rule, .file, (.line|tostring), .commit] | @tsv" gitleaks.json \
-            | while IFS=$'\t' read -r rule file line commit; do
-                rel="${file#${SRC_DIR}/}"
-                printf '| `%s` | `%s:%s` | `%s` | %s |\n' "$rule" "${rel:-$file}" "$line" "${commit:--}" "-"
-              done
-        } >> "$GITHUB_STEP_SUMMARY"
-
-    - name: Print findings (always)
-      if: always()
-      shell: bash
-      run: |
-        set -euo pipefail
-        [[ -f gitleaks.json ]] || { echo "No gitleaks.json produced"; exit 0; }
         LIMIT=200
-        REPO_URL="${{ github.server_url }}/${{ github.repository }}"
 
         JQ_FILTER='
           def norm:
             {
-              file: (.File // .file // .Target // .Location.File // ""),
-              line: (.StartLine // .Line // .Location.StartLine // 0),
-              rule: (.RuleID // .Rule // .Description // ""),
+              file:   (.File // .file // .Target // .Location.File // ""),
+              line:   (.StartLine // .Line // .Location.StartLine // 0),
+              rule:   (.RuleID // .Rule // .Description // ""),
               commit: (.Commit // .commit // "")
             };
           (if type=="object" and has("findings") then .findings
@@ -310,27 +223,56 @@ runs:
 
         COUNT=$(jq -r 'if type=="object" and has("findings") then (.findings|length)
                        elif type=="array" then length else 0 end' gitleaks.json)
-
         echo "Findings: $COUNT"
-        echo "### Secret findings :closed_lock_with_key:" >> "$GITHUB_STEP_SUMMARY"
-        echo "" >> "$GITHUB_STEP_SUMMARY"
-        echo "| Rule | File:Line | Commit | Link |" >> "$GITHUB_STEP_SUMMARY"
-        echo "|---|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
 
-        jq -r "$JQ_FILTER | [.rule, (.file+\":\"+(.line|tostring)), (.commit[0:7]),
-               (if (.commit|length)>0 and (.file|length)>0 and (.line|tonumber)>0
-                then \"$REPO_URL/blob/\"+.commit+\"/\"+.file+\"#L\"+(.line|tostring)
-                else \"\" end)]
-              | @tsv" gitleaks.json \
+        # stdout (up to LIMIT)
+        jq -r "$JQ_FILTER | [.rule, .file, (.line|tostring), (.commit // \"\")] | @tsv" gitleaks.json \
           | head -n "$LIMIT" \
-          | while IFS=$'\t' read -r rule loc sha link; do
-              printf '• %s %s %s %s\n' "[$rule]" "$loc" "$sha" "$link"
-              printf '| `%s` | `%s` | `%s` | %s |\n' "$rule" "$loc" "$sha" "${link:-"-"}" >> "$GITHUB_STEP_SUMMARY"
+          | while IFS=$'\t' read -r rule file line commit; do
+              # repo-relative path: strip temp tree prefix for diff mode
+              rel="$file"
+              if [[ -n "${SRC_DIR:-}" && "$file" == "${SRC_DIR%/}/"* ]]; then
+                rel="${file#${SRC_DIR%/}/}"
+              fi
+              sha="${commit:-${HEAD_SHA:-}}"
+              link=""
+              if [[ -n "$sha" && -n "$rel" && "$line" =~ ^[0-9]+$ ]]; then
+                link="${REPO_URL}/blob/${sha}/${rel}#L${line}"
+              fi
+              printf '• %s %s %s %s\n' "[$rule]" "${rel}:${line}" "${sha:0:7}" "${link}"
             done
 
-        if (( COUNT > LIMIT )); then
-          MORE=$((COUNT - LIMIT))
-          echo "... and $MORE more (see artifact gitleaks-report)." | tee -a "$GITHUB_STEP_SUMMARY"
+        # summary (single table)
+        {
+          echo "### Gitleaks findings (showing up to $LIMIT) :closed_lock_with_key:"
+          echo
+          echo "| Rule | File:Line | Commit | Link |"
+          echo "|---|---|---|---|"
+          jq -r "$JQ_FILTER | [.rule, .file, (.line|tostring), (.commit // \"\")] | @tsv" gitleaks.json \
+            | head -n "$LIMIT" \
+            | while IFS=$'\t' read -r rule file line commit; do
+                rel="$file"
+                if [[ -n "${SRC_DIR:-}" && "$file" == "${SRC_DIR%/}/"* ]]; then
+                  rel="${file#${SRC_DIR%/}/}"
+                fi
+                sha="${commit:-${HEAD_SHA:-}}"
+                link="-"
+                if [[ -n "$sha" && -n "$rel" && "$line" =~ ^[0-9]+$ ]]; then
+                  link="${REPO_URL}/blob/${sha}/${rel}#L${line}"
+                fi
+                printf '| `%s` | `%s:%s` | `%s` | %s |\n' "$rule" "$rel" "$line" "${sha:0:7}" "$link"
+              done
+
+          if (( COUNT > LIMIT )); then
+            MORE=$((COUNT - LIMIT))
+            echo
+            echo "_... and $MORE more (see artifact **gitleaks-report**)._"
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        # non-zero exit if any findings remain
+        if (( COUNT > 0 )); then
+          exit 1
         fi
 
     - name: Upload report (always)
