@@ -192,17 +192,19 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        PATCH_MAP="${{ steps.prpatch.outputs.patch_map }}"
+        PATCH_MAP_PATH="${{ steps.prpatch.outputs.patch_map }}"
         [[ -f "gitleaks.json" ]] || { echo "No gitleaks.json"; exit 0; }
 
-        # Если нет карты — значит нет добавлений, делаем отчёт пустым
-        if [[ -z "$PATCH_MAP" || ! -s "$PATCH_MAP" ]]; then
+        # Нет карты — нет добавлений => пустой отчёт
+        if [[ -z "${PATCH_MAP_PATH}" || ! -s "${PATCH_MAP_PATH}" ]]; then
           echo "[]" > gitleaks.json
           exit 0
         fi
 
-        # JQ-фильтр: пропускаем только совпадения, линия которых входит в любой диапазон файла
-        jq --argfile map "$PATCH_MAP" '
+        # Читаем карту и прокидываем её как argjson (без --argfile)
+        MAP_JSON="$(cat "${PATCH_MAP_PATH}")"
+
+        jq --argjson map "${MAP_JSON}" '
           def norm:
             if type=="object" and has("findings") then .findings
             elif type=="array" then .
