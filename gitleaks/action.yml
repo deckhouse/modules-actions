@@ -210,6 +210,82 @@ runs:
         mv gitleaks.filtered.json gitleaks.json
         echo "Filtered findings to only added lines in PR patch"
 
+    - name: Print findings to stdout
+      if: ${{ inputs.scan_mode == 'diff' }}
+      shell: bash
+      env:
+        SRC_DIR: ${{ steps.prpatch.outputs.src_dir }}
+      run: |
+        set -euo pipefail
+        [[ -f gitleaks.json ]] || { echo "No gitleaks.json"; exit 0; }
+
+        JQ_NORM='
+          def norm:
+            if type=="object" and has("findings") then .findings
+            elif type=="array" then .
+            else [] end;
+          norm
+          | map({
+              rule:   (.RuleID // .Rule // .Description // ""),
+              file:   (.File // .file // .Target // .Location.File // ""),
+              line:   (.StartLine // .Line // .Location.StartLine // 0),
+              commit: (.Commit // .commit // "")
+            })
+        '
+
+        COUNT="$(jq -r "$JQ_NORM | length" gitleaks.json)"
+        echo "Findings (stdout): $COUNT"
+
+        if [[ "$COUNT" -eq 0 ]]; then
+          echo "No leaks found in PR patch."
+          exit 0
+        fi
+
+        jq -r "$JQ_NORM | .[] | [.rule, .file, (.line|tostring), .commit] | @tsv" gitleaks.json \
+          | while IFS=$'\t' read -r rule file line commit; do
+              rel="${file#${SRC_DIR}/}"
+              printf '• [%s] %s:%s %s\n' "$rule" "${rel:-$file}" "$line" "${commit:-''}"
+            done
+
+    - name: Generate PR summary
+      if: ${{ inputs.scan_mode == 'diff' }}
+      shell: bash
+      env:
+        SRC_DIR: ${{ steps.prpatch.outputs.src_dir }}
+        REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+      run: |
+        set -euo pipefail
+        [[ -f gitleaks.json ]] || { echo "No gitleaks.json produced"; exit 0; }
+
+        JQ_NORM='
+          def norm:
+            if type=="object" and has("findings") then .findings
+            elif type=="array" then .
+            else [] end;
+          norm
+          | map({
+              rule:   (.RuleID // .Rule // .Description // ""),
+              file:   (.File // .file // .Target // .Location.File // ""),
+              line:   (.StartLine // .Line // .Location.StartLine // 0),
+              commit: (.Commit // .commit // "")
+            })
+        '
+
+        COUNT="$(jq -r "$JQ_NORM | length" gitleaks.json)"
+        echo "Findings: $COUNT"
+
+        {
+          echo "### Secret findings :closed_lock_with_key:"
+          echo
+          echo "| Rule | File:Line | Commit | Link |"
+          echo "|---|---|---|---|"
+          jq -r "$JQ_NORM | .[] | [.rule, .file, (.line|tostring), .commit] | @tsv" gitleaks.json \
+            | while IFS=$'\t' read -r rule file line commit; do
+                rel="${file#${SRC_DIR}/}"
+                printf '| `%s` | `%s:%s` | `%s` | %s |\n' "$rule" "${rel:-$file}" "$line" "${commit:--}" "-"
+              done
+        } >> "$GITHUB_STEP_SUMMARY"
+
     - name: Print findings (always)
       if: always()
       shell: bash
