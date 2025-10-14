@@ -1,105 +1,85 @@
 # 🕵️ Gitleaks GitHub Action
 
-## 📌 Что это такое
+## 📌 Purpose
 
-Этот GitHub Actions workflow автоматически запускает [Gitleaks](https://github.com/gitleaks/gitleaks) — инструмент для поиска секретов в коде (токены, ключи, пароли и т.п.). Он сканирует изменения либо полностью, либо в виде diff-а для Pull Request'ов.
+GitHub Action for automatic secret scanning in code using [Gitleaks](https://github.com/gitleaks/gitleaks). Prevents leakage of tokens, keys, passwords, and other secrets into the repository.
 
-Цель — предотвратить утечку секретов в публичные или приватные репозитории до попадания кода в основную ветку.
+## ⚙️ Operation Modes
 
----
+### Diff scan (primary mode)
+- **Automatically integrated** into general PR validation
+- Scans **only changed files** and **only added lines** in PR
+- Does not analyze commit history — eliminates false positives
+- Does not check unchanged files — focuses on new code
+- Uses `--no-git` for fast scanning
 
-## ⚙️ Как работает
+### Full scan (additional mode)
+- Runs on schedule or manually
+- Scans the entire repository
+- Suitable for periodic security audits
 
-Workflow состоит из двух режимов:
+## 🚀 Usage
 
-- **Diff scan** (режим по умолчанию для PR):
-  - Запускается при создании или обновлении Pull Request.
-  - Сканирует только изменения между текущей веткой и целевой (base) веткой.
+### Automatic Integration
 
-- **Full scan**:
-  - Запускается по расписанию или вручную.
-  - Сканирует весь репозиторий.
+Diff scan is already integrated into general PR validation and works automatically. No additional configuration required.
 
-Компоненты:
+### Full Scanning (optional)
 
-- 📄 `gitleaks.yml`: основной workflow с тремя триггерами — `pull_request`, `schedule`, `workflow_dispatch`.
-- ⚙️ `deckhouse/modules-actions/gitleaks@feature/gitleaks`: composite action, устанавливающая и запускающая Gitleaks.
-- 🛠 `gitleaks.toml` (опционально): конфигурационный файл правил для Gitleaks в корне репозитория. Если отсутствует — используются встроенные правила Gitleaks.
-
----
-
-## 🚀 Как подключить
-
-### 1. (Опционально) Добавьте конфиг Gitleaks
-
-Если вы хотите использовать собственные правила сканирования, создайте файл `gitleaks.toml` в **корне** вашего репозитория. Пример можно взять из официального репозитория Gitleaks:  
-📎 <https://github.com/gitleaks/gitleaks/blob/main/config/gitleaks.toml>
-
-**Если файл отсутствует:** Gitleaks будет использовать встроенные дефолтные правила.
-
-### 2. Добавьте workflow-файл
-
-Создайте файл `.github/workflows/gitleaks.yml` со следующим содержимым:
+If you need full scan, add to `.github/workflows/security-scan.yml`:
 
 ```yaml
-name: Gitleaks
+name: Security Scan
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
   schedule:
-    - cron: "0 2 * * *"  # ежедневно в 02:00 UTC
-  workflow_dispatch: {}  # ручной запуск
+    - cron: "0 2 * * *"  # daily at 02:00 UTC
+  workflow_dispatch: {}  # manual trigger
 
 permissions:
   contents: read
 
-concurrency:
-  group: "gitleaks-${{ github.ref }}"
-  cancel-in-progress: false
-
 jobs:
-  gitleaks-diff:
-    if: ${{ github.event_name == 'pull_request' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: deckhouse/modules-actions/gitleaks@feature/gitleaks
-        with:
-          scan_mode: diff
-          # gitleaks_version: v8.28.0  # опционально, по умолчанию v8.28.0
-
   gitleaks-full:
-    if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
-      - uses: deckhouse/modules-actions/gitleaks@feature/gitleaks
+      - uses: deckhouse/modules-actions/gitleaks@main
         with:
           scan_mode: full
-          # gitleaks_version: v8.28.0  # опционально, по умолчанию v8.28.0
 ```
 
----
+### Configuration (optional)
 
-## 📝 Входные параметры (Inputs)
+To configure scanning rules, create `gitleaks.toml` in the repository root:
+📎 <https://github.com/gitleaks/gitleaks/blob/main/config/gitleaks.toml>
 
-| Параметр | Описание | Обязательный | Значение по умолчанию |
-|----------|----------|--------------|----------------------|
-| `scan_mode` | Режим сканирования: `full` или `diff` | Нет | `full` |
-| `gitleaks_version` | Версия Gitleaks для установки | Нет | `v8.28.0` |
+Without config, built-in Gitleaks rules are used.
 
-### Примеры использования
+## 📝 Parameters
 
-**Использование конкретной версии Gitleaks:**
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `scan_mode` | Mode: `diff` or `full` | `full` |
+| `gitleaks_version` | Gitleaks version | `v8.28.0` |
+| `checkout_repo` | Repository for checkout | `${{ github.repository }}` |
+| `checkout_ref` | SHA for checkout | `""` |
+| `base_sha` | Base SHA for diff | `""` |
 
-```yaml
-- uses: deckhouse/modules-actions/gitleaks@feature/gitleaks
-  with:
-    scan_mode: full
-    gitleaks_version: v8.20.0
-```
+## 🔧 Technical Features
 
-**Минимальная конфигурация (используются дефолты):**
+### Patch-based scanning (diff mode)
+- Collects only changed files from PR
+- Creates temporary tree with these files
+- Scans without git history (`--no-git`)
+- Filters findings only by added lines
 
-```yaml
-- uses: deckhouse/modules-actions/gitleaks@feature/gitleaks
+### Benefits
+- **Minimal false positives** — doesn't find deleted secrets
+- **Fast operation** — scans only changes
+- **Accuracy** — focuses on new code in PR
+
+## 🐛 Troubleshooting
+
+**Many false positives**: use `diff` mode for PR checks
+**Workflow fails**: check `contents: read` permissions
+**Need configuration**: create `gitleaks.toml` in repository root
