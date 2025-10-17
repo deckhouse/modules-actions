@@ -78,9 +78,22 @@ runs:
 
         HEAD_SHA="$(git rev-parse HEAD)"
         BASE_SHA="${{ inputs.base_sha }}"
-        if [[ -z "${BASE_SHA}" && -n "${GITHUB_BASE_REF:-}" ]]; then
-          git fetch --no-tags origin "${GITHUB_BASE_REF}:${GITHUB_BASE_REF}"
-          BASE_SHA="$(git rev-parse "origin/${GITHUB_BASE_REF}")"
+        BASE_REPO_FULL="${{ github.event.pull_request.base.repo.full_name }}"
+        BASE_REF="${{ github.event.pull_request.base.ref }}"
+        BASE_REMOTE_URL="${{ github.server_url }}/${BASE_REPO_FULL}.git"
+        git remote add base "$BASE_REMOTE_URL" 2>/dev/null || git remote set-url base "$BASE_REMOTE_URL"
+
+        if [[ -z "${BASE_SHA}" && -n "${BASE_REF}" ]]; then
+          git fetch --no-tags base "${BASE_REF}:${BASE_REF}"
+          BASE_SHA="$(git rev-parse "FETCH_HEAD")"
+        fi
+
+        if ! git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then
+          if [[ -n "${BASE_REF}" ]]; then
+            git fetch --no-tags base "${BASE_REF}:${BASE_REF}"
+          else
+            git fetch --no-tags base "${BASE_SHA}" || true
+          fi
         fi
 
         echo "head_sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
