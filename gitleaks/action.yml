@@ -1,0 +1,276 @@
+name: "Gitleaks scan"
+description: "Run Gitleaks in full or diff mode (composite action, configurable version)"
+
+inputs:
+  scan_mode:
+    description: "Scan mode: full | diff"
+    required: false
+    default: "full"
+  gitleaks_version:
+    description: "Gitleaks version to install"
+    required: false
+    default: "v8.28.0"
+  checkout_repo:
+    description: "owner/repo to checkout (PR head)"
+    required: false
+    default: "${{ github.repository }}"
+  checkout_ref:
+    description: "ref/sha to checkout (PR head SHA)"
+    required: false
+    default: ""
+  base_sha:
+    description: "Base SHA for diff (PR base SHA)"
+    required: false
+    default: ""
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout (PR head or default)
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.checkout_repo }}
+        ref: ${{ inputs.checkout_ref }}
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Install Gitleaks
+      shell: bash
+      run: |
+        set -euo pipefail
+        ver="${{ inputs.gitleaks_version }}"
+        file_ver="${ver#v}"
+        arch="$(uname -m)"
+        case "$arch" in
+          x86_64|amd64)  pkg_arch="linux_x64" ;;
+          aarch64|arm64) pkg_arch="linux_arm64" ;;
+          *) echo "Unsupported arch: $arch"; exit 1 ;;
+        esac
+        base="https://github.com/gitleaks/gitleaks/releases/download/${ver}"
+        tgz="gitleaks_${file_ver}_${pkg_arch}.tar.gz"
+        curl -sSL "$base/$tgz" -o gitleaks.tgz
+        tar -xzf gitleaks.tgz gitleaks
+        chmod +x gitleaks
+        install_dir="$HOME/.local/bin"; mkdir -p "$install_dir"
+        mv gitleaks "$install_dir/gitleaks"
+        echo "$install_dir" >> "$GITHUB_PATH"
+        gitleaks version
+
+    - name: Check for optional config
+      id: config
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [[ -f "gitleaks.toml" ]]; then
+          echo "config_arg=-c gitleaks.toml" >> "$GITHUB_OUTPUT"
+          echo "✅ Found config: gitleaks.toml"
+        else
+          echo "config_arg=" >> "$GITHUB_OUTPUT"
+          echo "⚠️ Config file not found. Proceeding with default rules."
+        fi
+
+    - name: Collect PR patch (files & added lines)
+      id: prpatch
+      if: ${{ inputs.scan_mode == 'diff' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        HEAD_SHA="$(git rev-parse HEAD)"
+        BASE_SHA="${{ inputs.base_sha }}"
+        if [[ -z "${BASE_SHA}" && -n "${GITHUB_BASE_REF:-}" ]]; then
+          git fetch --no-tags origin "${GITHUB_BASE_REF}:${GITHUB_BASE_REF}"
+          BASE_SHA="$(git rev-parse "origin/${GITHUB_BASE_REF}")"
+        fi
+
+        echo "head_sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
+        echo "base_sha=${BASE_SHA}" >> "$GITHUB_OUTPUT"
+
+        if [[ -z "${BASE_SHA}" ]]; then
+          echo "No BASE SHA for PR; empty patch."
+          echo "src_dir=" >> "$GITHUB_OUTPUT"
+          echo "patch_map=" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        mapfile -t FILES < <(git diff --name-only --diff-filter=AMR "${BASE_SHA}" "${HEAD_SHA}")
+        if (( ${#FILES[@]} == 0 )); then
+          echo "No changed files."
+          echo "src_dir=" >> "$GITHUB_OUTPUT"
+          echo "patch_map=" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        SRC_DIR="$(mktemp -d)"
+        for f in "${FILES[@]}"; do
+          [[ -f "$f" ]] || continue
+          mkdir -p "${SRC_DIR}/$(dirname "$f")"
+          cp "$f" "${SRC_DIR}/$f"
+        done
+
+        PATCH_JSON="$(mktemp)"
+        echo '{}' > "$PATCH_JSON"
+
+        while IFS= read -r file; do
+          HUNKS="$(git diff --unified=0 "${BASE_SHA}" "${HEAD_SHA}" -- "$file" \
+            | awk '/^@@/ {print}' \
+            | sed -n 's/.*+\([0-9]\+\),\([0-9]\+\).*/\1 \2/p')"
+
+          RANGES=()
+          while read -r start count; do
+            [[ -z "${start:-}" || -z "${count:-}" ]] && continue
+            end=$((start + count - 1))
+            RANGES+=("[${start},${end}]")
+          done <<< "$HUNKS"
+
+          if (( ${#RANGES[@]} > 0 )); then
+            jq --arg f "$file" --argjson arr "[$(IFS=,; echo "${RANGES[*]}")]" \
+               '. + {($f): $arr}' "$PATCH_JSON" > "$PATCH_JSON.tmp"
+            mv "$PATCH_JSON.tmp" "$PATCH_JSON"
+          fi
+        done <<< "$(printf '%s\n' "${FILES[@]}")"
+
+        echo "src_dir=${SRC_DIR}" >> "$GITHUB_OUTPUT"
+        echo "patch_map=${PATCH_JSON}" >> "$GITHUB_OUTPUT"
+
+    - name: Gitleaks detect (full)
+      if: ${{ inputs.scan_mode == 'full' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        CONFIG_ARG="${{ steps.config.outputs.config_arg }}"
+        gitleaks detect --no-banner \
+          --report-format json --report-path gitleaks.json \
+          $CONFIG_ARG \
+          --source .
+
+    - name: Gitleaks detect (patch tree-only)
+      if: ${{ inputs.scan_mode == 'diff' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        SRC="${{ steps.prpatch.outputs.src_dir }}"
+        CONFIG_ARG="${{ steps.config.outputs.config_arg }}"
+        if [[ -z "${SRC}" ]]; then
+          echo "[]" > gitleaks.json
+          exit 0
+        fi
+        gitleaks detect --no-banner --no-git \
+          --report-format json --report-path gitleaks.json \
+          $CONFIG_ARG \
+          --source "${SRC}"
+
+    - name: Filter findings by added lines (patch)
+      if: ${{ inputs.scan_mode == 'diff' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        PATCH_MAP_PATH="${{ steps.prpatch.outputs.patch_map }}"
+        [[ -f "gitleaks.json" ]] || { echo "[]">gitleaks.json; exit 0; }
+
+        if [[ -z "${PATCH_MAP_PATH}" || ! -s "${PATCH_MAP_PATH}" ]]; then
+          echo "[]" > gitleaks.json
+          exit 0
+        fi
+
+        MAP_JSON="$(cat "${PATCH_MAP_PATH}")"
+
+        jq --argjson map "${MAP_JSON}" '
+          def arr: if type=="object" and has("findings") then .findings
+                   elif type=="array" then . else [] end;
+          arr
+          | map(
+              . as $f
+              | ($f.File // $f.file // $f.Target // $f.Location.File // "") as $file
+              | ($f.StartLine // $f.Line // $f.Location.StartLine // 0) as $line
+              | if ($map[$file] // empty) as $ranges
+                | any($ranges[]; $line >= .[0] and $line <= .[1])
+                then $f else empty end
+            )
+        ' gitleaks.json > gitleaks.filtered.json
+
+        mv gitleaks.filtered.json gitleaks.json
+        echo "Filtered to added lines."
+
+    - name: Print findings (always)
+      if: always()
+      shell: bash
+      env:
+        SRC_DIR: ${{ steps.prpatch.outputs.src_dir }}
+        HEAD_SHA: ${{ steps.prpatch.outputs.head_sha }}
+        REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+      run: |
+        set -euo pipefail
+        [[ -f gitleaks.json ]] || { echo "No gitleaks.json produced"; exit 0; }
+        LIMIT=200
+
+        JQ_FILTER='
+          def norm:
+            {
+              file:   (.File // .file // .Target // .Location.File // ""),
+              line:   (.StartLine // .Line // .Location.StartLine // 0),
+              rule:   (.RuleID // .Rule // .Description // ""),
+              commit: (.Commit // .commit // "")
+            };
+          (if type=="object" and has("findings") then .findings
+           elif type=="array" then .
+           else [] end)[] | norm
+        '
+
+        COUNT=$(jq -r 'if type=="object" and has("findings") then (.findings|length)
+                       elif type=="array" then length else 0 end' gitleaks.json)
+        echo "Findings: $COUNT"
+
+        jq -r "$JQ_FILTER | [.rule, .file, (.line|tostring), (.commit // \"\")] | @tsv" gitleaks.json \
+          | head -n "$LIMIT" \
+          | while IFS=$'\t' read -r rule file line commit; do
+              rel="$file"
+              if [[ -n "${SRC_DIR:-}" && "$file" == "${SRC_DIR%/}/"* ]]; then
+                rel="${file#${SRC_DIR%/}/}"
+              fi
+              sha="${commit:-${HEAD_SHA:-}}"
+              link=""
+              if [[ -n "$sha" && -n "$rel" && "$line" =~ ^[0-9]+$ ]]; then
+                link="${REPO_URL}/blob/${sha}/${rel}#L${line}"
+              fi
+              printf '• %s %s %s %s\n' "[$rule]" "${rel}:${line}" "${sha:0:7}" "${link}"
+            done
+
+        {
+           echo "### Secret findings :closed_lock_with_key:"
+          echo
+          echo "| Rule | File:Line | Commit | Link |"
+          echo "|---|---|---|---|"
+          jq -r "$JQ_FILTER | [.rule, .file, (.line|tostring), (.commit // \"\")] | @tsv" gitleaks.json \
+            | head -n "$LIMIT" \
+            | while IFS=$'\t' read -r rule file line commit; do
+                rel="$file"
+                if [[ -n "${SRC_DIR:-}" && "$file" == "${SRC_DIR%/}/"* ]]; then
+                  rel="${file#${SRC_DIR%/}/}"
+                fi
+                sha="${commit:-${HEAD_SHA:-}}"
+                link="-"
+                if [[ -n "$sha" && -n "$rel" && "$line" =~ ^[0-9]+$ ]]; then
+                  link="${REPO_URL}/blob/${sha}/${rel}#L${line}"
+                fi
+                printf '| `%s` | `%s:%s` | `%s` | %s |\n' "$rule" "$rel" "$line" "${sha:0:7}" "$link"
+              done
+
+          if (( COUNT > LIMIT )); then
+            MORE=$((COUNT - LIMIT))
+            echo
+            echo "_... and $MORE more (see artifact **gitleaks-report**)._"
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"
+
+        if (( COUNT > 0 )); then
+          exit 1
+        fi
+
+    - name: Upload report (always)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: gitleaks-report
+        path: gitleaks.json
+        if-no-files-found: ignore
