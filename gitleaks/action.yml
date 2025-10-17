@@ -93,7 +93,7 @@ runs:
           exit 0
         fi
 
-        mapfile -t FILES < <(git diff --name-only --diff-filter=AMR "${BASE_SHA}" "${HEAD_SHA}")
+        mapfile -t FILES < <(git diff --name-only --diff-filter=AMR "${BASE_SHA}...${HEAD_SHA}")
         if (( ${#FILES[@]} == 0 )); then
           echo "No changed files."
           echo "src_dir=" >> "$GITHUB_OUTPUT"
@@ -112,7 +112,7 @@ runs:
         echo '{}' > "$PATCH_JSON"
 
         while IFS= read -r file; do
-          HUNKS="$(git diff --unified=0 "${BASE_SHA}" "${HEAD_SHA}" -- "$file" \
+          HUNKS="$(git diff --unified=0 "${BASE_SHA}...${HEAD_SHA}" -- "$file" \
             | awk '/^@@/ {print}' \
             | sed -n 's/.*+\([0-9]\+\),\([0-9]\+\).*/\1 \2/p')"
 
@@ -163,6 +163,8 @@ runs:
     - name: Filter findings by added lines (patch)
       if: ${{ inputs.scan_mode == 'diff' }}
       shell: bash
+      env:
+        SRC_DIR: ${{ steps.prpatch.outputs.src_dir }}
       run: |
         set -euo pipefail
         PATCH_MAP_PATH="${{ steps.prpatch.outputs.patch_map }}"
@@ -174,16 +176,19 @@ runs:
         fi
 
         MAP_JSON="$(cat "${PATCH_MAP_PATH}")"
+        SRC_PREFIX="${SRC_DIR%/}/"
 
-        jq --argjson map "${MAP_JSON}" '
+        jq --argjson map "${MAP_JSON}" --arg src "${SRC_PREFIX}" '
           def arr: if type=="object" and has("findings") then .findings
                    elif type=="array" then . else [] end;
+          def strip($p; s): if s|startswith($p) then s[($p|length):] else s end;
+
           arr
           | map(
               . as $f
-              | ($f.File // $f.file // $f.Target // $f.Location.File // "") as $file
+              | (strip($src; ($f.File // $f.file // $f.Target // $f.Location.File // ""))) as $rel
               | ($f.StartLine // $f.Line // $f.Location.StartLine // 0) as $line
-              | if ($map[$file] // empty) as $ranges
+              | if ($map[$rel] // []) as $ranges
                 | any($ranges[]; $line >= .[0] and $line <= .[1])
                 then $f else empty end
             )
