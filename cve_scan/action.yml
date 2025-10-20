@@ -259,6 +259,7 @@ runs:
             trivy_registry_pass="${{inputs.prod_registry_password}}"
             dd_short_release_tag="release:$(echo ${module_tag} | cut -d '.' -f -2 | sed 's/^v//')"
             dd_full_release_tag="image_release_tag:${module_tag}"
+            dd_release_or_dev_tag="release"
             dd_image_version="$(echo ${dd_short_release_tag} | sed 's/^release\://')"
           fi
           module_workdir="${workdir}/${MODULE_NAME}_${module_tag}"
