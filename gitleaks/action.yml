@@ -1,5 +1,5 @@
 name: "Gitleaks scan"
-description: "Run Gitleaks in full or diff mode (composite action, configurable version)"
+description: "Run Gitleaks in full or diff mode (composite action, pull_request_target compatible)"
 
 inputs:
   scan_mode:
@@ -10,27 +10,22 @@ inputs:
     description: "Gitleaks version to install"
     required: false
     default: "v8.28.0"
-  checkout_repo:
-    description: "owner/repo to checkout (PR head)"
-    required: false
-    default: "${{ github.repository }}"
-  checkout_ref:
-    description: "ref/sha to checkout (PR head SHA)"
-    required: false
-    default: ""
-  base_sha:
-    description: "Base SHA for diff (PR base SHA)"
-    required: false
-    default: ""
 
 runs:
   using: "composite"
   steps:
-    - name: Checkout (PR head or default)
+    - name: Checkout repository
       uses: actions/checkout@v4
+      if: ${{ inputs.scan_mode == 'full' }}
       with:
-        repository: ${{ inputs.checkout_repo }}
-        ref: ${{ inputs.checkout_ref }}
+        fetch-depth: 0
+        persist-credentials: false
+
+    - name: Checkout PR merge commit
+      uses: actions/checkout@v4
+      if: ${{ inputs.scan_mode == 'diff' }}
+      with:
+        ref: refs/pull/${{ github.event.number }}/merge
         fetch-depth: 0
         persist-credentials: false
 
@@ -69,135 +64,38 @@ runs:
           echo "⚠️ Config file not found. Proceeding with default rules."
         fi
 
-    - name: Collect PR patch (files & added lines)
-      id: prpatch
-      if: ${{ inputs.scan_mode == 'diff' }}
-      shell: bash
-      run: |
-        set -euo pipefail
-
-        HEAD_SHA="$(git rev-parse HEAD)"
-        BASE_SHA="${{ inputs.base_sha }}"
-        if [[ -z "${BASE_SHA}" && -n "${GITHUB_BASE_REF:-}" ]]; then
-          git fetch --no-tags origin "${GITHUB_BASE_REF}:${GITHUB_BASE_REF}"
-          BASE_SHA="$(git rev-parse "origin/${GITHUB_BASE_REF}")"
-        fi
-
-        echo "head_sha=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
-        echo "base_sha=${BASE_SHA}" >> "$GITHUB_OUTPUT"
-
-        if [[ -z "${BASE_SHA}" ]]; then
-          echo "No BASE SHA for PR; empty patch."
-          echo "src_dir=" >> "$GITHUB_OUTPUT"
-          echo "patch_map=" >> "$GITHUB_OUTPUT"
-          exit 0
-        fi
-
-        mapfile -t FILES < <(git diff --name-only --diff-filter=AMR "${BASE_SHA}" "${HEAD_SHA}")
-        if (( ${#FILES[@]} == 0 )); then
-          echo "No changed files."
-          echo "src_dir=" >> "$GITHUB_OUTPUT"
-          echo "patch_map=" >> "$GITHUB_OUTPUT"
-          exit 0
-        fi
-
-        SRC_DIR="$(mktemp -d)"
-        for f in "${FILES[@]}"; do
-          [[ -f "$f" ]] || continue
-          mkdir -p "${SRC_DIR}/$(dirname "$f")"
-          cp "$f" "${SRC_DIR}/$f"
-        done
-
-        PATCH_JSON="$(mktemp)"
-        echo '{}' > "$PATCH_JSON"
-
-        while IFS= read -r file; do
-          HUNKS="$(git diff --unified=0 "${BASE_SHA}" "${HEAD_SHA}" -- "$file" \
-            | awk '/^@@/ {print}' \
-            | sed -n 's/.*+\([0-9]\+\),\([0-9]\+\).*/\1 \2/p')"
-
-          RANGES=()
-          while read -r start count; do
-            [[ -z "${start:-}" || -z "${count:-}" ]] && continue
-            end=$((start + count - 1))
-            RANGES+=("[${start},${end}]")
-          done <<< "$HUNKS"
-
-          if (( ${#RANGES[@]} > 0 )); then
-            jq --arg f "$file" --argjson arr "[$(IFS=,; echo "${RANGES[*]}")]" \
-               '. + {($f): $arr}' "$PATCH_JSON" > "$PATCH_JSON.tmp"
-            mv "$PATCH_JSON.tmp" "$PATCH_JSON"
-          fi
-        done <<< "$(printf '%s\n' "${FILES[@]}")"
-
-        echo "src_dir=${SRC_DIR}" >> "$GITHUB_OUTPUT"
-        echo "patch_map=${PATCH_JSON}" >> "$GITHUB_OUTPUT"
-
-    - name: Gitleaks detect (full)
+    - name: Gitleaks scan (full)
       if: ${{ inputs.scan_mode == 'full' }}
       shell: bash
       run: |
         set -euo pipefail
         CONFIG_ARG="${{ steps.config.outputs.config_arg }}"
-        gitleaks detect --no-banner \
+        gitleaks detect --no-banner --redact \
           --report-format json --report-path gitleaks.json \
           $CONFIG_ARG \
           --source .
 
-    - name: Gitleaks detect (patch tree-only)
+    - name: Gitleaks scan (diff)
       if: ${{ inputs.scan_mode == 'diff' }}
       shell: bash
       run: |
         set -euo pipefail
-        SRC="${{ steps.prpatch.outputs.src_dir }}"
         CONFIG_ARG="${{ steps.config.outputs.config_arg }}"
-        if [[ -z "${SRC}" ]]; then
-          echo "[]" > gitleaks.json
-          exit 0
-        fi
-        gitleaks detect --no-banner --no-git \
+        
+        BASE_COMMIT=$(git rev-parse HEAD^1)
+        echo "Base commit: $BASE_COMMIT"
+        echo "Scanning range: ${BASE_COMMIT}..HEAD"
+        
+        gitleaks detect --no-banner --redact \
           --report-format json --report-path gitleaks.json \
+          --log-opts="${BASE_COMMIT}..HEAD" \
           $CONFIG_ARG \
-          --source "${SRC}"
+          --source .
 
-    - name: Filter findings by added lines (patch)
-      if: ${{ inputs.scan_mode == 'diff' }}
-      shell: bash
-      run: |
-        set -euo pipefail
-        PATCH_MAP_PATH="${{ steps.prpatch.outputs.patch_map }}"
-        [[ -f "gitleaks.json" ]] || { echo "[]">gitleaks.json; exit 0; }
-
-        if [[ -z "${PATCH_MAP_PATH}" || ! -s "${PATCH_MAP_PATH}" ]]; then
-          echo "[]" > gitleaks.json
-          exit 0
-        fi
-
-        MAP_JSON="$(cat "${PATCH_MAP_PATH}")"
-
-        jq --argjson map "${MAP_JSON}" '
-          def arr: if type=="object" and has("findings") then .findings
-                   elif type=="array" then . else [] end;
-          arr
-          | map(
-              . as $f
-              | ($f.File // $f.file // $f.Target // $f.Location.File // "") as $file
-              | ($f.StartLine // $f.Line // $f.Location.StartLine // 0) as $line
-              | if ($map[$file] // empty) as $ranges
-                | any($ranges[]; $line >= .[0] and $line <= .[1])
-                then $f else empty end
-            )
-        ' gitleaks.json > gitleaks.filtered.json
-
-        mv gitleaks.filtered.json gitleaks.json
-        echo "Filtered to added lines."
-
-    - name: Print findings (always)
+    - name: Print findings
       if: always()
       shell: bash
       env:
-        SRC_DIR: ${{ steps.prpatch.outputs.src_dir }}
-        HEAD_SHA: ${{ steps.prpatch.outputs.head_sha }}
         REPO_URL: ${{ github.server_url }}/${{ github.repository }}
       run: |
         set -euo pipefail
@@ -224,36 +122,28 @@ runs:
         jq -r "$JQ_FILTER | [.rule, .file, (.line|tostring), (.commit // \"\")] | @tsv" gitleaks.json \
           | head -n "$LIMIT" \
           | while IFS=$'\t' read -r rule file line commit; do
-              rel="$file"
-              if [[ -n "${SRC_DIR:-}" && "$file" == "${SRC_DIR%/}/"* ]]; then
-                rel="${file#${SRC_DIR%/}/}"
-              fi
-              sha="${commit:-${HEAD_SHA:-}}"
+              sha="${commit}"
               link=""
-              if [[ -n "$sha" && -n "$rel" && "$line" =~ ^[0-9]+$ ]]; then
-                link="${REPO_URL}/blob/${sha}/${rel}#L${line}"
+              if [[ -n "$sha" && -n "$file" && "$line" =~ ^[0-9]+$ ]]; then
+                link="${REPO_URL}/blob/${sha}/${file}#L${line}"
               fi
-              printf '• %s %s %s %s\n' "[$rule]" "${rel}:${line}" "${sha:0:7}" "${link}"
+              printf '• %s %s %s %s\n' "[$rule]" "${file}:${line}" "${sha:0:7}" "${link}"
             done
 
         {
-           echo "### Secret findings :closed_lock_with_key:"
+          echo "### Secret findings :closed_lock_with_key:"
           echo
           echo "| Rule | File:Line | Commit | Link |"
           echo "|---|---|---|---|"
           jq -r "$JQ_FILTER | [.rule, .file, (.line|tostring), (.commit // \"\")] | @tsv" gitleaks.json \
             | head -n "$LIMIT" \
             | while IFS=$'\t' read -r rule file line commit; do
-                rel="$file"
-                if [[ -n "${SRC_DIR:-}" && "$file" == "${SRC_DIR%/}/"* ]]; then
-                  rel="${file#${SRC_DIR%/}/}"
-                fi
-                sha="${commit:-${HEAD_SHA:-}}"
+                sha="${commit}"
                 link="-"
-                if [[ -n "$sha" && -n "$rel" && "$line" =~ ^[0-9]+$ ]]; then
-                  link="${REPO_URL}/blob/${sha}/${rel}#L${line}"
+                if [[ -n "$sha" && -n "$file" && "$line" =~ ^[0-9]+$ ]]; then
+                  link="${REPO_URL}/blob/${sha}/${file}#L${line}"
                 fi
-                printf '| `%s` | `%s:%s` | `%s` | %s |\n' "$rule" "$rel" "$line" "${sha:0:7}" "$link"
+                printf '| `%s` | `%s:%s` | `%s` | %s |\n' "$rule" "$file" "$line" "${sha:0:7}" "$link"
               done
 
           if (( COUNT > LIMIT )); then
@@ -267,7 +157,7 @@ runs:
           exit 1
         fi
 
-    - name: Upload report (always)
+    - name: Upload report
       if: always()
       uses: actions/upload-artifact@v4
       with:
