@@ -110,7 +110,7 @@ runs:
         # Defining functions
 
         trivy_scan() {
-          ${workdir}/bin/trivy i --vex oci --show-suppressed --config-check "${TRIVY_POLICY_URL}" --cache-dir "${workdir}/bin/trivy_cache" --skip-db-update --skip-java-db-update --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format ${1} ${2} ${3} --quiet ${4} --username "${trivy_registry_user}" --password "${trivy_registry_pass}" --image-src remote
+          ${workdir}/bin/trivy i --timeout 15m --vex oci --show-suppressed --config-check "${TRIVY_POLICY_URL}" --cache-dir "${workdir}/bin/trivy_cache" --skip-db-update --skip-java-db-update --exit-code 0 --severity "${SEVERITY}" --ignorefile "${module_workdir}/.trivyignore" --format ${1} ${2} ${3} --quiet ${4} --username "${trivy_registry_user}" --password "${trivy_registry_pass}" --image-src remote
         }
 
         send_report() {
