@@ -207,7 +207,7 @@ runs:
           if [ "${TAG}" != "${{ github.event.repository.default_branch }}" ]; then
             if [ "${TAG_TYPE}" == "release" ]; then
               # if some specific release is defined - scan only it
-              if echo "${TAG}"|grep -q "^[0-9]+\.[0-9]+$"; then
+              if echo "${TAG}"|grep -qE "^[0-9]+\.[0-9]+$"; then
                 module_tags=($(crane ls "${PROD_REGISTRY_MODULE_BASEDIR}/${MODULE_NAME}" | grep "^v${TAG}\.[0-9]*$" | sort -V -r | head -n 1))
               else
                 echo "ERROR: Please specify required release in the following format: [0-9]+\.[0-9]+"
