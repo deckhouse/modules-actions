@@ -11,17 +11,6 @@ runs:
         
         TRDL_ROOT="${HOME}/.trdl"
         
-        if [[ "$RUNNER_OS" == "Linux" && "$RUNNER_ARCH" == "X64" ]]; then
-          PLATFORM="linux-amd64"
-        elif [[ "$RUNNER_OS" == "macOS" && "$RUNNER_ARCH" == "X64" ]]; then
-          PLATFORM="darwin-amd64"
-        elif [[ "$RUNNER_OS" == "macOS" && "$RUNNER_ARCH" == "ARM64" ]]; then
-          PLATFORM="darwin-arm64"
-        else
-          echo "::error::Unsupported platform: $RUNNER_OS/$RUNNER_ARCH"
-          exit 1
-        fi
-        
         echo "🔍 Getting TRDL version from stable channel..."
         trdl_target_version=$(curl -sSf https://tuf.trdl.dev/targets/channels/0/stable)
         
@@ -35,10 +24,11 @@ runs:
         TRDL_BIN="${TRDL_ROOT}/releases/${trdl_target_version}/trdl"
         
         if [[ ! -x "${TRDL_BIN}" ]]; then
-          echo "📥 Installing TRDL ${trdl_target_version} for platform ${PLATFORM}..."
+          echo "📥 Installing TRDL ${trdl_target_version}..."
           mkdir -p "${TRDL_ROOT}/releases/${trdl_target_version}"
           
-          curl -sSfL "https://tuf.trdl.dev/targets/releases/${trdl_target_version}/${PLATFORM}/bin/trdl" -o "${TRDL_BIN}"
+          curl -sSLO "https://tuf.trdl.dev/targets/releases/${trdl_target_version}/linux-amd64/bin/trdl"
+          mv trdl "${TRDL_BIN}"
           
           chmod +x "${TRDL_BIN}"
           
