@@ -1,0 +1,55 @@
+name: 'Setup TRDL'
+description: 'Install TRDL with versioned releases and symlink pattern to prevent race conditions'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup TRDL
+      shell: bash
+      run: |
+        set -e
+        
+        TRDL_ROOT="${HOME}/.trdl"
+        
+        if [[ "$RUNNER_OS" == "Linux" && "$RUNNER_ARCH" == "X64" ]]; then
+          PLATFORM="linux-amd64"
+        elif [[ "$RUNNER_OS" == "macOS" && "$RUNNER_ARCH" == "X64" ]]; then
+          PLATFORM="darwin-amd64"
+        elif [[ "$RUNNER_OS" == "macOS" && "$RUNNER_ARCH" == "ARM64" ]]; then
+          PLATFORM="darwin-arm64"
+        else
+          echo "::error::Unsupported platform: $RUNNER_OS/$RUNNER_ARCH"
+          exit 1
+        fi
+        
+        echo "🔍 Getting TRDL version from stable channel..."
+        trdl_target_version=$(curl -sSf https://tuf.trdl.dev/targets/channels/0/stable)
+        
+        if [[ -z "$trdl_target_version" ]]; then
+          echo "::error::Failed to get TRDL version from stable channel"
+          exit 1
+        fi
+        
+        echo "📦 Target TRDL version: $trdl_target_version"
+        
+        TRDL_BIN="${TRDL_ROOT}/releases/${trdl_target_version}/trdl"
+        
+        if [[ ! -x "${TRDL_BIN}" ]]; then
+          echo "📥 Installing TRDL ${trdl_target_version} for platform ${PLATFORM}..."
+          mkdir -p "${TRDL_ROOT}/releases/${trdl_target_version}"
+          
+          curl -sSfL "https://tuf.trdl.dev/targets/releases/${trdl_target_version}/${PLATFORM}/bin/trdl" -o "${TRDL_BIN}"
+          
+          chmod +x "${TRDL_BIN}"
+          
+          echo "✅ TRDL ${trdl_target_version} installed"
+        else
+          echo "✅ TRDL ${trdl_target_version} already installed"
+        fi
+        
+        ln -sfn "releases/${trdl_target_version}" "${TRDL_ROOT}/current"
+        
+        echo "${TRDL_ROOT}/current" >> $GITHUB_PATH
+        
+        echo "✅ TRDL ready to use (version: ${trdl_target_version})"
+

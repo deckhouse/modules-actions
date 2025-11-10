@@ -4,6 +4,9 @@ description: 'Lint Deckhouse module'
 runs:
   using: "composite"
   steps:
+    - name: Setup TRDL
+      uses: ./trdl-install
+    
     - name: Setup dmt
       uses: werf/trdl-actions/setup-app@v0
       with:
