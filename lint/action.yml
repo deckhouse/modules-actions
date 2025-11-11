@@ -5,7 +5,7 @@ runs:
   using: "composite"
   steps:
     - name: Setup TRDL
-      uses: ./trdl-install
+      uses: uses: deckhouse/modules-actions/trdl-install@feat/trdl-action
     
     - name: Setup dmt
       uses: werf/trdl-actions/setup-app@v0
