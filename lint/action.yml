@@ -1,13 +1,13 @@
 name: 'Lint Deckhouse Module'
-description: 'Lint Deckhouse module'
+description: 'Lint Deckhouse module using TRDL and DMT'
 
 runs:
   using: "composite"
   steps:
     - name: Setup TRDL
       uses: deckhouse/modules-actions/trdl-install@feat/trdl-action
-    
-    - name: Setup dmt
+
+    - name: Setup DMT
       uses: werf/trdl-actions/setup-app@v0
       with:
         repo: dmt
@@ -16,8 +16,20 @@ runs:
         root-sha512: e77d785600a8c8612b84b93a5a2e4c48188d68f7478356d0708213e928bf67b024ed412e702dc32930da5c5bfc9b1c44be3ee7a292f923327815c91c6c3c3833
         group: 0
         channel: stable
+      env:
+        PATH: ${{ env.HOME }}/.trdl/current:${{ env.PATH }}
 
-    - name: Lint the module
+    - name: Debug and Lint the module
       shell: bash
+      env:
+        PATH: ${{ env.HOME }}/.trdl/current:${{ env.PATH }}
       run: |
+        echo "::group::🔍 TRDL Debug Info"
+        echo "PATH = $PATH"
+        echo "trdl path: $(which trdl)"
+        trdl version
+        echo "::endgroup::"
+
+        echo "::group::🧪 Running dmt lint"
         dmt lint ./
+        echo "::endgroup::"
