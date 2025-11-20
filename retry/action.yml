@@ -1,0 +1,50 @@
+name: 'Retry Command'
+description: 'Execute a command with retry logic (Internal use only)'
+inputs:
+  command:
+    description: 'Command to execute'
+    required: true
+  description:
+    description: 'Description of the operation for logging'
+    required: true
+  max_retries:
+    description: 'Maximum number of retries (0 = no retries, 1 = 1 retry, etc.)'
+    required: false
+    default: "0"
+  retry_delay:
+    description: 'Delay in seconds between retry attempts'
+    required: false
+    default: "5"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Execute with retry
+      shell: bash
+      run: |
+        # Internal action - not for external use
+        if [[ "${GITHUB_ACTION_PATH}" != *"/modules-actions/retry"* ]]; then
+          echo "ERROR: This is an internal action and should not be used outside this repository"
+          exit 1
+        fi
+
+        MAX_ATTEMPTS=$((1 + ${{ inputs.max_retries }}))
+        ATTEMPT=1
+
+        while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+          echo "Attempt $ATTEMPT of $MAX_ATTEMPTS..."
+          if eval "${{ inputs.command }}"; then
+            exit 0
+          fi
+
+          # Command failed
+          ATTEMPT=$((ATTEMPT + 1))
+          if [ $ATTEMPT -le $MAX_ATTEMPTS ]; then
+            echo "Attempt failed, retrying in ${{ inputs.retry_delay }} seconds..."
+            sleep ${{ inputs.retry_delay }}
+          else
+            echo "Failed to ${{ inputs.description }} after $MAX_ATTEMPTS attempts"
+            exit 1
+          fi
+        done
+
