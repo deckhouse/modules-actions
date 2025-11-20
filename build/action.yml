@@ -137,43 +137,27 @@ runs:
         kill -3 ${SSH_AGENT_PID}
         echo "Initial ssh agent pid: ${{ steps.ssh_agent.outputs.INIT_SSH_AGENT_PID }}"
 
-    - name: Prepare bundle image variables
-      id: bundle_image
+    - name: Push images with retry logic
       shell: bash
       run: |
+        RETRY_SCRIPT="${{ github.action_path }}/retry.sh"
+        chmod +x "$RETRY_SCRIPT"
+
+        # Bundle image
         IMAGE_SRC="$(jq -r '.Images."bundle".DockerImageName' images_tags_werf.json)"
         IMAGE_DST="$(jq -r '.Images.bundle.DockerRepo' images_tags_werf.json):${{ inputs.module_tag }}"
         echo "✨ Bundle image : Pushing ${IMAGE_SRC} to ${IMAGE_DST}"
-        echo "IMAGE_SRC=${IMAGE_SRC}" >> $GITHUB_OUTPUT
-        echo "IMAGE_DST=${IMAGE_DST}" >> $GITHUB_OUTPUT
+        "$RETRY_SCRIPT" "${{ inputs.push_retry_attempts }}" "copy bundle image" crane copy "${IMAGE_SRC}" "${IMAGE_DST}"
 
-    - name: Bundle the module image
-      uses: ./retry
-      with:
-        command: crane copy ${{ steps.bundle_image.outputs.IMAGE_SRC }} ${{ steps.bundle_image.outputs.IMAGE_DST }}
-        description: copy bundle image
-        max_retries: ${{ inputs.push_retry_attempts }}
-
-    - name: Prepare release-channel image variables
-      id: release_image
-      shell: bash
-      run: |
+        # Release-channel image
         IMAGE_SRC="$(jq -r '.Images."release-channel-version".DockerImageName' images_tags_werf.json)"
         IMAGE_DST="$(jq -r '.Images."release-channel-version".DockerRepo' images_tags_werf.json)/release:${{ inputs.module_tag }}"
         echo "✨ Release-channel image : Pushing ${IMAGE_SRC} to ${IMAGE_DST}"
-        echo "IMAGE_SRC=${IMAGE_SRC}" >> $GITHUB_OUTPUT
-        echo "IMAGE_DST=${IMAGE_DST}" >> $GITHUB_OUTPUT
+        "$RETRY_SCRIPT" "${{ inputs.push_retry_attempts }}" "copy release-channel image" crane copy "${IMAGE_SRC}" "${IMAGE_DST}"
 
-    - name: Prepare the release-channel image
-      uses: ./retry
-      with:
-        command: crane copy ${{ steps.release_image.outputs.IMAGE_SRC }} ${{ steps.release_image.outputs.IMAGE_DST }}
-        description: copy release-channel image
-        max_retries: ${{ inputs.push_retry_attempts }}
-
-    - name: Register ${{ inputs.module_name }} module
-      uses: ./retry
-      with:
-        command: crane append --oci-empty-base --new_layer "" --new_tag "${{ inputs.module_source }}:${{ inputs.module_name }}"
-        description: register module
-        max_retries: ${{ inputs.push_retry_attempts }}
+        # Register module
+        echo "✨ Register the module ${{ inputs.module_name }}"
+        "$RETRY_SCRIPT" "${{ inputs.push_retry_attempts }}" "register module" crane append \
+          --oci-empty-base \
+          --new_layer "" \
+          --new_tag "${{ inputs.module_source }}:${{ inputs.module_name }}"
