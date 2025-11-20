@@ -13,6 +13,10 @@ inputs:
   release_channel:
     description: 'Name of the release channel. Must be one of alpha, beta, early-access, stable, rock-solid'
     required: true
+  push_retry_attempts:
+    description: "Number of attempts to retry the push operation"
+    required: false
+    default: "0"
 
 runs:
   using: "composite"
@@ -24,4 +28,4 @@ runs:
         IMAGE_SRC="${REPO}:${{ inputs.module_tag }}"
         IMAGE_DST="${REPO}:${{ inputs.release_channel }}"
         echo "✨ Deploy : Pushing ${IMAGE_SRC} to ${IMAGE_DST}"
-        crane copy "${IMAGE_SRC}" "${IMAGE_DST}"
+        "${{ github.action_path }}/../retry.sh" "${{ inputs.push_retry_attempts }}" "deploy module to ${{ inputs.release_channel }}" crane copy "${IMAGE_SRC}" "${IMAGE_DST}"
