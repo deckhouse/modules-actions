@@ -137,27 +137,27 @@ runs:
         kill -3 ${SSH_AGENT_PID}
         echo "Initial ssh agent pid: ${{ steps.ssh_agent.outputs.INIT_SSH_AGENT_PID }}"
 
-    - name: Push images with retry logic
+    - name: Bundle the module image
       shell: bash
       run: |
-        RETRY_SCRIPT="${{ github.action_path }}/retry.sh"
-        chmod +x "$RETRY_SCRIPT"
-
-        # Bundle image
         IMAGE_SRC="$(jq -r '.Images."bundle".DockerImageName' images_tags_werf.json)"
         IMAGE_DST="$(jq -r '.Images.bundle.DockerRepo' images_tags_werf.json):${{ inputs.module_tag }}"
         echo "✨ Bundle image : Pushing ${IMAGE_SRC} to ${IMAGE_DST}"
-        "$RETRY_SCRIPT" "${{ inputs.push_retry_attempts }}" "copy bundle image" crane copy "${IMAGE_SRC}" "${IMAGE_DST}"
+        "${{ github.action_path }}/../retry.sh" "${{ inputs.push_retry_attempts }}" "copy bundle image" crane copy "${IMAGE_SRC}" "${IMAGE_DST}"
 
-        # Release-channel image
+    - name: Prepare the release-channel image
+      shell: bash
+      run: |
         IMAGE_SRC="$(jq -r '.Images."release-channel-version".DockerImageName' images_tags_werf.json)"
         IMAGE_DST="$(jq -r '.Images."release-channel-version".DockerRepo' images_tags_werf.json)/release:${{ inputs.module_tag }}"
         echo "✨ Release-channel image : Pushing ${IMAGE_SRC} to ${IMAGE_DST}"
-        "$RETRY_SCRIPT" "${{ inputs.push_retry_attempts }}" "copy release-channel image" crane copy "${IMAGE_SRC}" "${IMAGE_DST}"
+        "${{ github.action_path }}/../retry.sh" "${{ inputs.push_retry_attempts }}" "copy release-channel image" crane copy "${IMAGE_SRC}" "${IMAGE_DST}"
 
-        # Register module
+    - name: Register ${{ inputs.module_name }} module
+      shell: bash
+      run: |
         echo "✨ Register the module ${{ inputs.module_name }}"
-        "$RETRY_SCRIPT" "${{ inputs.push_retry_attempts }}" "register module" crane append \
+        "${{ github.action_path }}/../retry.sh" "${{ inputs.push_retry_attempts }}" "register module" crane append \
           --oci-empty-base \
           --new_layer "" \
           --new_tag "${{ inputs.module_source }}:${{ inputs.module_name }}"
