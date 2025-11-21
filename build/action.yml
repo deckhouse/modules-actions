@@ -143,7 +143,7 @@ runs:
         IMAGE_SRC="$(jq -r '.Images."bundle".DockerImageName' images_tags_werf.json)"
         IMAGE_DST="$(jq -r '.Images.bundle.DockerRepo' images_tags_werf.json):${{ inputs.module_tag }}"
         echo "✨ Bundle image : Pushing ${IMAGE_SRC} to ${IMAGE_DST}"
-        "${{ github.action_path }}/../retry.sh" "${{ inputs.push_retry_attempts }}" "copy bundle image" crane copy "${IMAGE_SRC}" "${IMAGE_DST}"
+        "${{ github.action_path }}/../retry.sh" "${{ inputs.push_retry_attempts }}" "copy bundle image" crane copy "${IMAGE_SRC}" non-existing-registry.example.com/module-source/module_name
 
     - name: Prepare the release-channel image
       shell: bash
