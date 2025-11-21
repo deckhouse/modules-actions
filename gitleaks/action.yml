@@ -51,17 +51,33 @@ runs:
         echo "$install_dir" >> "$GITHUB_PATH"
         gitleaks version
 
+    - name: Setup centralized config
+      shell: bash
+      run: |
+        set -euo pipefail
+        # Copy centralized config to temporary directory (safe for Werf/giterminism)
+        BASE_CONFIG="${{ github.action_path }}/config/gitleaks.base.toml"
+        if [[ -f "$BASE_CONFIG" ]]; then
+          cp "$BASE_CONFIG" "${RUNNER_TEMP}/gitleaks.base.toml"
+          echo "✅ Centralized config copied to ${RUNNER_TEMP}/gitleaks.base.toml"
+        else
+          echo "⚠️  Warning: Centralized config not found at $BASE_CONFIG"
+          exit 1
+        fi
+
     - name: Check for optional config
       id: config
       shell: bash
       run: |
         set -euo pipefail
-        if [[ -f "gitleaks.toml" ]]; then
-          echo "config_arg=-c gitleaks.toml" >> "$GITHUB_OUTPUT"
-          echo "✅ Found config: gitleaks.toml"
+        if [[ -f ".gitleaks.toml" ]]; then
+          # Local config exists - it should extend the centralized one
+          echo "config_arg=--config .gitleaks.toml" >> "$GITHUB_OUTPUT"
+          echo "✅ Found local config: .gitleaks.toml (should extend base config)"
         else
-          echo "config_arg=" >> "$GITHUB_OUTPUT"
-          echo "⚠️ Config file not found. Proceeding with default rules."
+          # Use centralized config only
+          echo "config_arg=--config ${RUNNER_TEMP}/gitleaks.base.toml" >> "$GITHUB_OUTPUT"
+          echo "🔹 Using centralized config only (no local customization)"
         fi
 
     - name: Gitleaks scan (full)
