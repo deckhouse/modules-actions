@@ -4,7 +4,7 @@
 # Repositories can extend this config by creating local .gitleaks.toml:
 #   [extend]
 #   useDefault = false
-#   path = "${RUNNER_TEMP}/gitleaks.base.toml"
+#   path = "/home/runner/work/_temp/gitleaks.base.toml"
 
 # Use default Gitleaks rules
 [extend]
