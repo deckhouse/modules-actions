@@ -71,9 +71,18 @@ runs:
       run: |
         set -euo pipefail
         if [[ -f ".gitleaks.toml" ]]; then
-          # Local config exists - it should extend the centralized one
-          echo "config_arg=--config .gitleaks.toml" >> "$GITHUB_OUTPUT"
-          echo "✅ Found local config: .gitleaks.toml (should extend base config)"
+          # Local config exists - check if it has [extend] section
+          if grep -q "^\[extend\]" .gitleaks.toml; then
+            # Has extend section - use as is
+            echo "config_arg=--config .gitleaks.toml" >> "$GITHUB_OUTPUT"
+            echo "✅ Found local config with [extend] section - using as is"
+          else
+            # No extend section - warn and ignore, use base config only
+            echo "⚠️  WARNING: Local config file .gitleaks.toml exists but does not contain [extend] section"
+            echo "   We cannot be sure this is the expected extend configuration."
+            echo "   Ignoring local config file and using base config only."
+            echo "config_arg=--config ${RUNNER_TEMP}/gitleaks.base.toml" >> "$GITHUB_OUTPUT"
+          fi
         else
           # Use centralized config only
           echo "config_arg=--config ${RUNNER_TEMP}/gitleaks.base.toml" >> "$GITHUB_OUTPUT"
