@@ -95,7 +95,7 @@ runs:
       run: |
         set -euo pipefail
         CONFIG_ARG="${{ steps.config.outputs.config_arg }}"
-        gitleaks detect --no-banner --redact \
+        gitleaks detect --no-banner --redact --log-level debug \
           --report-format json --report-path gitleaks.json \
           $CONFIG_ARG \
           --source .
@@ -111,7 +111,7 @@ runs:
         echo "Base commit: $BASE_COMMIT"
         echo "Scanning range: ${BASE_COMMIT}..HEAD"
         
-        gitleaks detect --no-banner --redact \
+        gitleaks detect --no-banner --redact --log-level debug \
           --report-format json --report-path gitleaks.json \
           --log-opts="${BASE_COMMIT}..HEAD" \
           $CONFIG_ARG \
