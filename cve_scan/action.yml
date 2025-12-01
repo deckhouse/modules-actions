@@ -102,8 +102,8 @@ runs:
 
         echo "Updating Trivy Data Bases"
         mkdir -p "${workdir}/bin/trivy_cache"
-        ${workdir}/bin/trivy image --username "${{inputs.prod_registry_user}}" --password "${{inputs.prod_registry_password}}" --download-db-only --db-repository "${TRIVY_DB_URL}" --cache-dir "${workdir}/bin/trivy_cache"
-        ${workdir}/bin/trivy image --username "${{inputs.prod_registry_user}}" --password "${{inputs.prod_registry_password}}" --download-java-db-only --java-db-repository "${TRIVY_JAVA_DB_URL}" --cache-dir "${workdir}/bin/trivy_cache"
+        ${workdir}/bin/trivy image --timeout 15m --username "${{inputs.prod_registry_user}}" --password "${{inputs.prod_registry_password}}" --download-db-only --db-repository "${TRIVY_DB_URL}" --cache-dir "${workdir}/bin/trivy_cache"
+        ${workdir}/bin/trivy image --timeout 15m --username "${{inputs.prod_registry_user}}" --password "${{inputs.prod_registry_password}}" --download-java-db-only --java-db-repository "${TRIVY_JAVA_DB_URL}" --cache-dir "${workdir}/bin/trivy_cache"
         echo
         echo "======================================================="
         echo
