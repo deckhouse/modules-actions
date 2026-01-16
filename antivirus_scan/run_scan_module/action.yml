@@ -1,0 +1,93 @@
+
+name: "AV Run Scan"
+description: "Runs single antivirus scan for one tag and one AV"
+inputs:
+  tag:
+    description: "Target tag/ref string (e.g. main or fe:v1.2.3)"
+    required: true
+  antivirus_name:
+    description: "drweb | kaspersky"
+    required: true
+  antivirus_path:
+    description: "Path in container where scans are stored"
+    required: true
+  scan_results_dir:
+    description: "Local dir for results"
+    required: true
+    default: "scans"
+  module_name:
+    description: "Module name in registry path"
+    required: true
+  prod_registry:
+    description: "prod registry"
+    required: true
+  dev_registry:
+    description: "dev registry"
+    required: true
+outputs:
+  scan_id:
+    description: "Computed scan id"
+    value: ${{ steps.run.outputs.scan_id }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run scan
+      id: run
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        TAG="${{ inputs.tag }}"
+        CONTAINER="registry_${{ inputs.antivirus_name }}"
+        AV_PATH="${{ inputs.antivirus_path }}"
+
+        ref="$(echo "$TAG" | awk -F':' '{print $2}' | tr -d '\n')"
+        if [[ -z "$ref" ]]; then ref="$(echo "$TAG" | tr -d '\n')"; fi
+
+        ref_sanitized="$(echo "$ref" | sed 's/[.\/]/-/g')"
+        SCAN_TIME="$(date '+%s')"
+        SCAN_ID="${SCAN_TIME}-${GITHUB_RUN_ID}-${ref_sanitized}"
+        MODULE_NAME="${{ inputs.module_name }}"
+        MODULE_NAME=${MODULE_NAME#*/} # cut prefix
+        if [[ "$ref" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "prod registry"
+          edition="$(echo "$TAG" | tr -d '\n' | awk -F':' '{print $1 }')"
+          SCAN_ID="${SCAN_ID}-${edition}"
+          registry_image_path="/deckhouse/${edition}/modules/${MODULE_NAME}"
+          registry_host="${{ inputs.prod_registry }}"
+        else
+          echo "dev registry"
+          registry_image_path="/sys/deckhouse-oss/modules/${MODULE_NAME}"
+          registry_host="${{ inputs.dev_registry }}"
+        fi
+
+        SCAN_ID="${SCAN_ID}-${CONTAINER}"
+        echo "scan_id=${SCAN_ID}"
+        echo "scan_id=${SCAN_ID}" >> "$GITHUB_OUTPUT"
+
+        docker exec "${CONTAINER}" scanner "${ref}" "${registry_host}${registry_image_path}" "${SCAN_ID}" module
+
+        mkdir -p "${{ inputs.scan_results_dir }}/${SCAN_ID}"
+        docker cp "${CONTAINER}:/${AV_PATH}/scans/${SCAN_ID}/scan_results_clean.md" \
+          "./${{ inputs.scan_results_dir }}/${SCAN_ID}/scan_results_clean.md"
+        docker cp "${CONTAINER}:/${AV_PATH}/scans/${SCAN_ID}/scan_results_threats.md" \
+          "./${{ inputs.scan_results_dir }}/${SCAN_ID}/scan_results_threats.md"
+
+        if [[ -f "${{ inputs.scan_results_dir }}/${SCAN_ID}/scan_results_threats.md" ]]; then
+          THREAT_COUNT=$(sed -n 's/.*Images with threats | \([0-9]\+\) |.*/\1/p' "${{ inputs.scan_results_dir }}/${SCAN_ID}/scan_results_threats.md" | head -1 || true)
+          ERRORS_COUNT=$(sed -n 's/.*Errors | \([0-9]\+\) |.*/\1/p' "${{ inputs.scan_results_dir }}/${SCAN_ID}/scan_results_threats.md" | head -1 || true)
+
+          if [[ -n "${THREAT_COUNT}" && "${THREAT_COUNT}" -gt 0 ]]; then
+            echo "❌ THREATS DETECTED: ${THREAT_COUNT}"
+            exit 1
+          elif [[ -n "${ERRORS_COUNT}" && "${ERRORS_COUNT}" -gt 0 ]]; then
+            echo "❌ ERRORS DETECTED: ${ERRORS_COUNT}"
+            exit 1
+          else
+            echo "✅ No threats detected (${THREAT_COUNT:-0})"
+          fi
+        else
+          echo "⚠️ scan_results_threats.md not found"
+          exit 1
+        fi

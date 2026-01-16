@@ -1,0 +1,68 @@
+name: "AV Compute Matrix"
+description: "Computes tags matrix for antivirus scans"
+inputs:
+  scan_branch:
+    description: "If non-empty, scan only this ref (e.g. main or fe:v1.2.3)"
+    required: false
+    default: ""
+  active_releases_to_scan:
+    description: "How many active releases to scan"
+    required: true
+    default: "3"
+  editions:
+    description: "Space-separated editions, e.g. 'fe ee'"
+    required: true
+    default: "fe"
+outputs:
+  matrix:
+    description: "Matrix JSON: { include: [ { tag: '...' }, ... ] }"
+    value: ${{ steps.compute.outputs.matrix }}
+runs:
+  using: "composite"
+  steps:
+    - name: Compute matrix
+      id: compute
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        SCAN_BRANCH="${{ inputs.scan_branch }}"
+        ACTIVE="${{ inputs.active_releases_to_scan }}"
+        EDITIONS="${{ inputs.editions }}"
+
+        if [[ -n "$SCAN_BRANCH" ]]; then
+          ITEMS=("$SCAN_BRANCH")
+        else
+          TAGS=$(git ls-remote --tags origin \
+            | grep -F "tags/v" \
+            | awk -F '/' '{print $3}' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)
+
+          TAGS_TO_SCAN=$(echo "$TAGS" | tr ' ' '\n' | sed 's/^v//' \
+            | sort -t. -k1,1n -k2,2n -k3,3n \
+            | awk -F. '{
+                key = $1 "." $2
+                if (key != prev && prev != "") print "v" prev "." maxp
+                if (key != prev) { prev = key; maxp = $3 }
+                else if ($3 > maxp) maxp = $3
+              }
+              END { if (prev != "") print "v" prev "." maxp }' \
+            | tail -n "$ACTIVE")
+
+          ITEMS=()
+          for edition in $EDITIONS; do
+            for tag in $TAGS_TO_SCAN; do
+              ITEMS+=("${edition}:${tag}")
+            done
+          done
+          ITEMS+=("main")
+        fi
+
+        echo "Tags to scan:"
+        printf '%s\n' "${ITEMS[@]}"
+
+        JSON=$(printf '%s\n' "${ITEMS[@]}" | jq -R -s -c '
+          split("\n") | map(select(length>0)) | { include: map({ tag: . }) }
+        ')
+
+        echo "matrix=$JSON" >> "$GITHUB_OUTPUT"
