@@ -21,6 +21,7 @@ release_branch - Optional. Set minor version of release you want to scan. e.g.: 
 scan_several_lastest_releases - Optional. Whether to scan last several releases or not. true/false. For scheduled pipelines it is always true. Default is: false.
 latest_releases_amount - Optional. Number of latest releases to scan. Default is: 3
 severity - Optional. Vulnerabilities severity to scan. Default is: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+TRIVY_REPORTS_LOG_OUTPUT - 0 - no output, 1 - only CVE, 2 - CVE & License. Output Trivy reports into CI job log, default - 2
 ```
 
 ### Job level

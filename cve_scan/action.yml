@@ -52,6 +52,9 @@ inputs:
   module_dev_registry_custom_path:
     description: 'Module custom path in dev registry. Example: flant/modules'
     required: false
+  trivy_reports_log_output:
+    description: '0 - no output, 1 - only CVE, 2 - CVE & License. Output Trivy reports into CI job log, default - 2'
+    required: false
 
 runs:
   using: "composite"
@@ -76,6 +79,7 @@ runs:
         SEVERITY: "${{inputs.severity || 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'}}"
         MODULE_PROD_REGISTRY_PATH: "${{inputs.module_prod_registry_custom_path || 'deckhouse/fe/modules'}}"
         MODULE_DEV_REGISTRY_PATH: "${{inputs.module_dev_registry_custom_path || 'sys/deckhouse-oss/modules'}}"
+        TRIVY_REPORTS_LOG_OUTPUT: "${{inputs.trivy_reports_log_output || '2'}}"
       run: |
         echo "Creating workdir"
         workdir="trivy_scan"
@@ -296,22 +300,26 @@ runs:
             IMAGE_HASH="$(jq -rc '.value' <<< "$line")"
 
             if [ "$additional_image_detected" == true ]; then
-              if [ "${TRIVY_REPORTS_LOG_OUTPUT}" != "false" ]; then
+              if [ "${TRIVY_REPORTS_LOG_OUTPUT}" -ne 0 ]; then
                 # CVE Scan
                 trivy_scan "table" "--scanners vuln" "" "${module_image}:${module_tag}"
-                # License scan
-                trivy_scan "table" "--scanners license --license-full" "" "${module_image}:${module_tag}"
+                if [ "${TRIVY_REPORTS_LOG_OUTPUT}" -eq 2 ]; then
+                  # License scan
+                  trivy_scan "table" "--scanners license --license-full" "" "${module_image}:${module_tag}"
+                fi
               fi
               # CVE Scan
               trivy_scan "json" "--scanners vuln" "--output ${module_reports}/ext_${MODULE_NAME}_${IMAGE_NAME}_report.json" "${module_image}:${module_tag}"
               # License scan
               trivy_scan "json" "--scanners license --license-full" "--output ${module_reports}/ext_${MODULE_NAME}_${IMAGE_NAME}_report_license.json" "${module_image}:${module_tag}"
             else
-              if [ "${TRIVY_REPORTS_LOG_OUTPUT}" != "false" ]; then
+              if [ "${TRIVY_REPORTS_LOG_OUTPUT}" -ne 0 ]; then
                 # CVE Scan
                 trivy_scan "table" "--scanners vuln" "" "${module_image}@${IMAGE_HASH}"
-                # License scan
-                trivy_scan "table" "--scanners license --license-full" "" "${module_image}@${IMAGE_HASH}"
+                if [ "${TRIVY_REPORTS_LOG_OUTPUT}" -eq 2 ]; then
+                  # License scan
+                  trivy_scan "table" "--scanners license --license-full" "" "${module_image}@${IMAGE_HASH}"
+                fi
               fi
               # CVE Scan
               trivy_scan "json" "--scanners vuln" "--output ${module_reports}/ext_${MODULE_NAME}_${IMAGE_NAME}_report.json" "${module_image}@${IMAGE_HASH}"
