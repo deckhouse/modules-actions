@@ -10,6 +10,10 @@ inputs:
     description: 'Python version to use'
     required: false
     default: '3.11'
+  base_branch:
+    description: 'Base branch for the pull request'
+    required: false
+    default: 'main'
 
 outputs:
   version:
@@ -177,6 +181,7 @@ runs:
       uses: peter-evans/create-pull-request@v5
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
+        base: ${{ inputs.base_branch }}
         branch: translate-changelog-${{ steps.find_changelog.outputs.version }}
         title: "${{ steps.find_changelog.outputs.version }}"
         body: |
