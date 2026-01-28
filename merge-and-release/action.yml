@@ -53,13 +53,11 @@ runs:
         echo "Extracted version: $VERSION"
 
     - name: Merge PR
-      uses: peter-evans/merge-pull-request@v1
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        number: ${{ inputs.pr_number }}
-        merge-method: merge
-        commit-title: "${{ steps.extract_version.outputs.version }}"
-        commit-message: "Merge PR #${{ inputs.pr_number }}: ${{ inputs.pr_title }}"
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh pr merge ${{ inputs.pr_number }} --merge --delete-branch
 
     - name: Wait for merge to complete
       shell: bash
