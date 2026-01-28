@@ -87,12 +87,17 @@ runs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         
-        # Настроить git для использования токена (PAT)
+        # Очистить существующие credentials и настроить git для использования PAT
+        git config --local --unset credential.helper || true
         git remote set-url origin https://x-access-token:$GITHUB_TOKEN@github.com/${{ github.repository }}.git
         
         # Убедиться, что мы на актуальной версии main (уже на main после предыдущего шага)
+        # Важно: после fetch и checkout remote URL может измениться, поэтому переустанавливаем его
         git fetch origin
         git reset --hard origin/${{ inputs.base_branch }}
+        
+        # Убедиться, что remote URL все еще использует PAT (может быть перезаписан после fetch)
+        git remote set-url origin https://x-access-token:$GITHUB_TOKEN@github.com/${{ github.repository }}.git
         
         # Проверить, существует ли уже такой тег
         if git rev-parse "$VERSION" >/dev/null 2>&1; then
