@@ -138,11 +138,12 @@ runs:
       if: steps.create_tag.outputs.tag_created == 'true'
       shell: bash
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         VERSION="${{ steps.extract_version.outputs.version }}"
         
         # Запустить workflow build_prod.yml через workflow_dispatch
+        # workflow_dispatch может быть вызван через GITHUB_TOKEN (исключение из ограничений)
         gh workflow run build_prod.yml --ref "$VERSION" -f tag="$VERSION" || {
           echo "Warning: Failed to trigger build_prod.yml workflow"
           echo "Tag $VERSION was created, but build workflow needs to be triggered manually"
