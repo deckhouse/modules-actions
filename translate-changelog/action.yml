@@ -192,26 +192,32 @@ runs:
           exit 0
         fi
         
-        # Прочитать содержимое changelog для body
-        CHANGELOG_CONTENT=$(cat "${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.eng_file }}" | sed 's/`/\\`/g' | sed 's/\$/\\$/g')
+        # Создать временный файл для body PR
+        PR_BODY_FILE=$(mktemp)
+        cat > "$PR_BODY_FILE" << EOF
+        ## Changelog $VERSION
+
+        This PR contains the English translation of the Russian changelog for version $VERSION.
+
+        **Source file:** \`${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.ru_file }}\`
+        **Translated file:** \`${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.eng_file }}\`
+
+        <details>
+        <summary>Changelog content</summary>
+
+        \`\`\`yaml
+        $(cat "${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.eng_file }}")
+        \`\`\`
+
+        </details>
+        EOF
         
         # Создать PR
         gh pr create \
           --base "$BASE_BRANCH" \
           --head "$BRANCH_NAME" \
           --title "$VERSION" \
-          --body "## Changelog $VERSION
-
-This PR contains the English translation of the Russian changelog for version $VERSION.
-
-**Source file:** \`${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.ru_file }}\`
-**Translated file:** \`${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.eng_file }}\`
-
-<details>
-<summary>Changelog content</summary>
-
-\`\`\`yaml
-$CHANGELOG_CONTENT
-\`\`\`
-
-</details>"
+          --body-file "$PR_BODY_FILE"
+        
+        # Удалить временный файл
+        rm -f "$PR_BODY_FILE"
