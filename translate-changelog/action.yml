@@ -150,21 +150,19 @@ runs:
         print(f"Translated {ru_file} to {eng_file}")
         EOF
 
-    - name: Create branch and commit
+    - name: Commit translated changelog
       if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
       shell: bash
       run: |
         VERSION="${{ steps.find_changelog.outputs.version }}"
-        BRANCH_NAME="translate-changelog-${VERSION}"
         
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         
-        git checkout -b "$BRANCH_NAME"
         git add "${{ inputs.changelog_path }}/"
         git commit -m "Translate changelog ${VERSION} to English"
         
-        git push origin "$BRANCH_NAME"
+        git push origin HEAD
 
     - name: Read translated changelog content
       if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
@@ -182,7 +180,6 @@ runs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         base: ${{ inputs.base_branch }}
-        branch: translate-changelog-${{ steps.find_changelog.outputs.version }}
         title: "${{ steps.find_changelog.outputs.version }}"
         body: |
           ## Changelog ${{ steps.find_changelog.outputs.version }}
@@ -200,4 +197,3 @@ runs:
           ```
           
           </details>
-        delete-branch: true
