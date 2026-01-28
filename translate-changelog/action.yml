@@ -150,6 +150,15 @@ runs:
         print(f"Translated {ru_file} to {eng_file}")
         EOF
 
+    - name: Get current branch name
+      if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
+      id: get_branch
+      shell: bash
+      run: |
+        BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+        echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        echo "Current branch: $BRANCH_NAME"
+
     - name: Commit translated changelog
       if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
       shell: bash
@@ -162,7 +171,8 @@ runs:
         git add "${{ inputs.changelog_path }}/"
         git commit -m "Translate changelog ${VERSION} to English"
         
-        # Не пушим изменения - create-pull-request сам их обработает и запушит
+        # Пушим коммит в текущую ветку
+        git push origin HEAD
 
     - name: Read translated changelog content
       if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
@@ -180,6 +190,8 @@ runs:
       with:
         token: ${{ secrets.GITHUB_TOKEN }}
         base: ${{ inputs.base_branch }}
+        branch: ${{ steps.get_branch.outputs.branch }}
+        commit-message: "Translate changelog ${{ steps.find_changelog.outputs.version }} to English"
         title: "${{ steps.find_changelog.outputs.version }}"
         body: |
           ## Changelog ${{ steps.find_changelog.outputs.version }}
