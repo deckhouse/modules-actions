@@ -20,6 +20,10 @@ inputs:
     description: 'Label that triggers the release'
     required: false
     default: 'release'
+  github_token:
+    description: 'Token for pushing tags (use RELEASE_PAT secret with PAT to trigger workflows via push)'
+    required: false
+    default: ${{ secrets.GITHUB_TOKEN }}
 
 outputs:
   version:
@@ -74,12 +78,17 @@ runs:
     - name: Create tag
       id: create_tag
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
         VERSION="${{ steps.extract_version.outputs.version }}"
         
         # Настроить git user
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
+        
+        # Настроить git для использования токена (PAT)
+        git remote set-url origin https://x-access-token:$GITHUB_TOKEN@github.com/${{ github.repository }}.git
         
         # Убедиться, что мы на актуальной версии main
         git fetch origin ${{ inputs.base_branch }}:${{ inputs.base_branch }} --force
@@ -95,7 +104,7 @@ runs:
         # Создать тег на текущем коммите HEAD (после мерджа)
         git tag -a "$VERSION" -m "Release $VERSION"
         
-        # Пушить тег - используя PAT это запустит workflow build_prod.yml
+        # Пушить тег используя PAT - это запустит workflow build_prod.yml через push:tags
         git push origin "$VERSION"
         echo "tag_created=true" >> $GITHUB_OUTPUT
 
@@ -133,18 +142,3 @@ runs:
           ```
         draft: false
         prerelease: false
-
-    - name: Trigger build_prod workflow
-      if: steps.create_tag.outputs.tag_created == 'true'
-      shell: bash
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        VERSION="${{ steps.extract_version.outputs.version }}"
-        
-        # Запустить workflow build_prod.yml через workflow_dispatch
-        # workflow_dispatch может быть вызван через GITHUB_TOKEN (исключение из ограничений)
-        gh workflow run build_prod.yml --ref "$VERSION" -f tag="$VERSION" || {
-          echo "Warning: Failed to trigger build_prod.yml workflow"
-          echo "Tag $VERSION was created, but build workflow needs to be triggered manually"
-        }
