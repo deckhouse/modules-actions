@@ -57,7 +57,7 @@ runs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh pr merge ${{ inputs.pr_number }} --merge --delete-branch
+        gh pr merge ${{ inputs.pr_number }} --squash --delete-branch
 
     - name: Wait for merge to complete
       shell: bash
