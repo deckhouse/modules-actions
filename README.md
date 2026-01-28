@@ -17,6 +17,8 @@ This repository contains GitHub Actions workflows for building and deploying mod
 | [**deploy**](./deploy/action.yml)     | Deploys the Deckhouse modules to the one of selected release channels.                                                |
 | [**cve_scan**](./cve_scan/action.yml) | Trivy CVE Scan of module images. Documentation can be found [here](./.docs/cve_scan.md)                               |
 | [**svace_analyze**](./svace_analyze/action.yml) | Include svace analyze action to analyze and import builds made with svace tool  |
+| [**translate-changelog**](./translate-changelog/action.yml) | Translates Russian changelog files to English and creates a PR |
+| [**merge-and-release**](./merge-and-release/action.yml) | Merges a PR and creates a GitHub release with tag |
 
 ## Examples
 
@@ -26,6 +28,8 @@ All examples are located in the [examples](./.examples) directory. They show how
 2. `deploy.yaml` — can be run after releasing a new version of the modules. Deploys the modules to the selected release channel.
 3. `cve_scan.yaml` — can run for each PR commit, manually and by push to main branch. Scans modules images for CVE and uploads reports to DefectDojo
 4. `svace_analyze.yaml` — can be run after successfully build with svace tool. Analyze builds with svace analyze tool and imports to the Svacer.
+5. `translate-changelog.yml` — runs on push to any branch. Translates Russian changelog files to English and creates a PR.
+6. `merge-and-release.yml` — runs when a label is added to a PR. Merges the PR and creates a GitHub release.
 
 ## Usage
 
