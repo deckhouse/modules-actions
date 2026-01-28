@@ -62,7 +62,7 @@ runs:
     - name: Wait for merge to complete
       shell: bash
       run: |
-        sleep 5
+        sleep 10
 
     - name: Checkout base branch
       shell: bash
@@ -81,6 +81,10 @@ runs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         
+        # Убедиться, что мы на актуальной версии main
+        git fetch origin ${{ inputs.base_branch }}:${{ inputs.base_branch }} --force
+        git reset --hard origin/${{ inputs.base_branch }}
+        
         # Проверить, существует ли уже такой тег
         if git rev-parse "$VERSION" >/dev/null 2>&1; then
           echo "Tag $VERSION already exists, skipping tag creation"
@@ -88,7 +92,10 @@ runs:
           exit 0
         fi
         
+        # Создать тег на текущем коммите HEAD (после мерджа)
         git tag -a "$VERSION" -m "Release $VERSION"
+        
+        # Пушить тег - используя PAT это запустит workflow build_prod.yml
         git push origin "$VERSION"
         echo "tag_created=true" >> $GITHUB_OUTPUT
 
@@ -126,3 +133,17 @@ runs:
           ```
         draft: false
         prerelease: false
+
+    - name: Trigger build_prod workflow
+      if: steps.create_tag.outputs.tag_created == 'true'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        VERSION="${{ steps.extract_version.outputs.version }}"
+        
+        # Запустить workflow build_prod.yml через workflow_dispatch
+        gh workflow run build_prod.yml --ref "$VERSION" -f tag="$VERSION" || {
+          echo "Warning: Failed to trigger build_prod.yml workflow"
+          echo "Tag $VERSION was created, but build workflow needs to be triggered manually"
+        }
