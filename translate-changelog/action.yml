@@ -105,18 +105,19 @@ runs:
       if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
       id: translate
       shell: bash
+      env:
+        RU_FILE: ${{ steps.find_changelog.outputs.ru_file }}
+        ENG_FILE: ${{ steps.find_changelog.outputs.eng_file }}
       run: |
         cd "${{ inputs.changelog_path }}"
-        RU_FILE="${{ steps.find_changelog.outputs.ru_file }}"
-        ENG_FILE="${{ steps.find_changelog.outputs.eng_file }}"
         
         python3 << 'EOF'
         import yaml
         from deep_translator import GoogleTranslator
-        import sys
+        import os
         
-        ru_file = sys.argv[1]
-        eng_file = sys.argv[2]
+        ru_file = os.environ['RU_FILE']
+        eng_file = os.environ['ENG_FILE']
         
         # Загрузить русский файл
         with open(ru_file, 'r', encoding='utf-8') as f:
@@ -144,7 +145,6 @@ runs:
         
         print(f"Translated {ru_file} to {eng_file}")
         EOF
-        "$RU_FILE" "$ENG_FILE"
 
     - name: Create branch and commit
       if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
