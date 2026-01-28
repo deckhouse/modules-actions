@@ -162,7 +162,7 @@ runs:
         git add "${{ inputs.changelog_path }}/"
         git commit -m "Translate changelog ${VERSION} to English"
         
-        git push origin HEAD
+        # Не пушим изменения - create-pull-request сам их обработает и запушит
 
     - name: Read translated changelog content
       if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
