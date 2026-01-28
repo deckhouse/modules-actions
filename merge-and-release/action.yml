@@ -77,6 +77,10 @@ runs:
       run: |
         VERSION="${{ steps.extract_version.outputs.version }}"
         
+        # Настроить git user
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
         # Проверить, существует ли уже такой тег
         if git rev-parse "$VERSION" >/dev/null 2>&1; then
           echo "Tag $VERSION already exists, skipping tag creation"
