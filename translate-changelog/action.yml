@@ -174,38 +174,44 @@ runs:
         # Пушим коммит в текущую ветку
         git push origin HEAD
 
-    - name: Read translated changelog content
+    - name: Create Pull Request using GitHub CLI
       if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
-      id: read_changelog
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        ENG_FILE="${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.eng_file }}"
-        echo "content<<EOF" >> $GITHUB_OUTPUT
-        cat "$ENG_FILE" >> $GITHUB_OUTPUT
-        echo "EOF" >> $GITHUB_OUTPUT
+        BRANCH_NAME="${{ steps.get_branch.outputs.branch }}"
+        BASE_BRANCH="${{ inputs.base_branch }}"
+        VERSION="${{ steps.find_changelog.outputs.version }}"
+        
+        # Проверить, существует ли уже PR для этой ветки
+        EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --base "$BASE_BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+        
+        if [ -n "$EXISTING_PR" ] && [ "$EXISTING_PR" != "null" ]; then
+          echo "PR #$EXISTING_PR already exists for branch $BRANCH_NAME"
+          exit 0
+        fi
+        
+        # Прочитать содержимое changelog для body
+        CHANGELOG_CONTENT=$(cat "${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.eng_file }}" | sed 's/`/\\`/g' | sed 's/\$/\\$/g')
+        
+        # Создать PR
+        gh pr create \
+          --base "$BASE_BRANCH" \
+          --head "$BRANCH_NAME" \
+          --title "$VERSION" \
+          --body "## Changelog $VERSION
 
-    - name: Create Pull Request
-      if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
-      uses: peter-evans/create-pull-request@v5
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-        base: ${{ inputs.base_branch }}
-        branch: ${{ steps.get_branch.outputs.branch }}
-        commit-message: "Translate changelog ${{ steps.find_changelog.outputs.version }} to English"
-        title: "${{ steps.find_changelog.outputs.version }}"
-        body: |
-          ## Changelog ${{ steps.find_changelog.outputs.version }}
-          
-          This PR contains the English translation of the Russian changelog for version ${{ steps.find_changelog.outputs.version }}.
-          
-          **Source file:** `${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.ru_file }}`
-          **Translated file:** `${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.eng_file }}`
-          
-          <details>
-          <summary>Changelog content</summary>
-          
-          ```yaml
-          ${{ steps.read_changelog.outputs.content }}
-          ```
-          
-          </details>
+This PR contains the English translation of the Russian changelog for version $VERSION.
+
+**Source file:** \`${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.ru_file }}\`
+**Translated file:** \`${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.eng_file }}\`
+
+<details>
+<summary>Changelog content</summary>
+
+\`\`\`yaml
+$CHANGELOG_CONTENT
+\`\`\`
+
+</details>"
