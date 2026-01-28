@@ -90,8 +90,8 @@ runs:
         # Настроить git для использования токена (PAT)
         git remote set-url origin https://x-access-token:$GITHUB_TOKEN@github.com/${{ github.repository }}.git
         
-        # Убедиться, что мы на актуальной версии main
-        git fetch origin ${{ inputs.base_branch }}:${{ inputs.base_branch }} --force
+        # Убедиться, что мы на актуальной версии main (уже на main после предыдущего шага)
+        git fetch origin
         git reset --hard origin/${{ inputs.base_branch }}
         
         # Проверить, существует ли уже такой тег
