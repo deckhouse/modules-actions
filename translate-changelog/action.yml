@@ -116,36 +116,36 @@ runs:
         cd "${{ inputs.changelog_path }}"
         
         python3 << 'EOF'
-        import yaml
         from deep_translator import GoogleTranslator
         import os
         
         ru_file = os.environ['RU_FILE']
         eng_file = os.environ['ENG_FILE']
         
-        # Загрузить русский файл
+        # Загрузить русский файл построчно для сохранения форматирования
         with open(ru_file, 'r', encoding='utf-8') as f:
-            ru_data = yaml.safe_load(f)
+            ru_lines = f.readlines()
         
-        # Перевести содержимое
+        # Перевести содержимое построчно
         translator = GoogleTranslator(source='ru', target='en')
         
-        eng_data = {}
-        for key, value in ru_data.items():
-            if isinstance(value, str):
-                eng_data[key] = translator.translate(value)
-            elif isinstance(value, list):
-                eng_data[key] = [translator.translate(item) if isinstance(item, str) else item for item in value]
-            else:
-                eng_data[key] = value
-        
-        # Заменить "Изменения:" на "Changes:"
-        if 'Изменения:' in eng_data:
-            eng_data['Changes:'] = eng_data.pop('Изменения:')
-        
-        # Сохранить английский файл
+        # Сохранить с сохранением оригинального форматирования
         with open(eng_file, 'w', encoding='utf-8') as f:
-            yaml.dump(eng_data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+            for line in ru_lines:
+                # Пропустить пустые строки
+                if not line.strip():
+                    f.write(line)
+                    continue
+                
+                # Сохранить оригинальные отступы
+                indent = len(line) - len(line.lstrip())
+                content = line.strip()
+                
+                # Перевести содержимое строки
+                translated_content = translator.translate(content)
+                
+                # Записать переведенную строку с сохранением отступов
+                f.write(' ' * indent + translated_content + '\n')
         
         print(f"Translated {ru_file} to {eng_file}")
         EOF
