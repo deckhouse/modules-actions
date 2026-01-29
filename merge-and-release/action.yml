@@ -1,0 +1,149 @@
+name: 'Merge PR and Create Release'
+description: 'Merges a PR and creates a GitHub release with tag'
+
+inputs:
+  pr_number:
+    description: 'Pull request number to merge'
+    required: true
+  pr_title:
+    description: 'Pull request title (used to extract version)'
+    required: true
+  changelog_path:
+    description: 'Path to CHANGELOG directory'
+    required: false
+    default: 'CHANGELOG'
+  base_branch:
+    description: 'Base branch to merge into'
+    required: false
+    default: 'main'
+  release_label:
+    description: 'Label that triggers the release'
+    required: false
+    default: 'release'
+  github_token:
+    description: 'Token for pushing tags (use RELEASE_PAT secret with PAT to trigger workflows via push)'
+    required: false
+    default: ${{ secrets.GITHUB_TOKEN }}
+
+outputs:
+  version:
+    description: 'Extracted version from PR title'
+  tag_created:
+    description: 'Whether a tag was created'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Extract version from PR title
+      id: extract_version
+      shell: bash
+      run: |
+        PR_TITLE="${{ inputs.pr_title }}"
+        
+        # Извлечь версию из заголовка PR (формат: v0.3.17 или 0.3.17)
+        VERSION=$(echo "$PR_TITLE" | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+        
+        if [ -z "$VERSION" ]; then
+          echo "Error: Could not extract version from PR title: $PR_TITLE"
+          exit 1
+        fi
+        
+        # Убедиться, что версия начинается с 'v'
+        if [[ ! "$VERSION" =~ ^v ]]; then
+          VERSION="v${VERSION}"
+        fi
+        
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Extracted version: $VERSION"
+
+    - name: Merge PR
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh pr merge ${{ inputs.pr_number }} --squash --delete-branch
+
+    - name: Wait for merge to complete
+      shell: bash
+      run: |
+        sleep 10
+
+    - name: Checkout base branch
+      shell: bash
+      run: |
+        git fetch origin
+        git checkout ${{ inputs.base_branch }}
+        git pull origin ${{ inputs.base_branch }}
+
+    - name: Create tag
+      id: create_tag
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        VERSION="${{ steps.extract_version.outputs.version }}"
+        
+        # Настроить git user
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # Очистить существующие credentials и настроить git для использования PAT
+        git config --local --unset credential.helper || true
+        git remote set-url origin https://x-access-token:$GITHUB_TOKEN@github.com/${{ github.repository }}.git
+        
+        # Убедиться, что мы на актуальной версии main (уже на main после предыдущего шага)
+        # Важно: после fetch и checkout remote URL может измениться, поэтому переустанавливаем его
+        git fetch origin
+        git reset --hard origin/${{ inputs.base_branch }}
+        
+        # Убедиться, что remote URL все еще использует PAT (может быть перезаписан после fetch)
+        git remote set-url origin https://x-access-token:$GITHUB_TOKEN@github.com/${{ github.repository }}.git
+        
+        # Проверить, существует ли уже такой тег
+        if git rev-parse "$VERSION" >/dev/null 2>&1; then
+          echo "Tag $VERSION already exists, skipping tag creation"
+          echo "tag_created=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        # Создать тег на текущем коммите HEAD (после мерджа)
+        git tag -a "$VERSION" -m "Release $VERSION"
+        
+        # Пушить тег используя PAT - это запустит workflow build_prod.yml через push:tags
+        git push origin "$VERSION"
+        echo "tag_created=true" >> $GITHUB_OUTPUT
+
+    - name: Read changelog
+      id: read_changelog
+      shell: bash
+      run: |
+        VERSION="${{ steps.extract_version.outputs.version }}"
+        CHANGELOG_FILE="${{ inputs.changelog_path }}/${VERSION}.yml"
+        
+        if [ ! -f "$CHANGELOG_FILE" ]; then
+          echo "Warning: Changelog file $CHANGELOG_FILE not found"
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          echo "Release $VERSION" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+        
+        # Прочитать содержимое changelog и правильно экранировать
+        echo "body<<EOF" >> $GITHUB_OUTPUT
+        cat "$CHANGELOG_FILE" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        tag_name: ${{ steps.extract_version.outputs.version }}
+        name: ${{ steps.extract_version.outputs.version }}
+        body: |
+          ## Changelog
+          
+          ```yaml
+          ${{ steps.read_changelog.outputs.body }}
+          ```
+        draft: false
+        prerelease: false

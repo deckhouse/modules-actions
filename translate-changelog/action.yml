@@ -1,0 +1,223 @@
+name: 'Translate Changelog and Create PR'
+description: 'Translates Russian changelog files to English and creates a PR'
+
+inputs:
+  changelog_path:
+    description: 'Path to CHANGELOG directory'
+    required: false
+    default: 'CHANGELOG'
+  python_version:
+    description: 'Python version to use'
+    required: false
+    default: '3.11'
+  base_branch:
+    description: 'Base branch for the pull request'
+    required: false
+    default: 'main'
+
+outputs:
+  version:
+    description: 'Version of the translated changelog'
+  ru_file:
+    description: 'Russian changelog file name'
+  eng_file:
+    description: 'English changelog file name'
+  has_changes:
+    description: 'Whether CHANGELOG files were changed in the last commit'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check if CHANGELOG files changed in last commit
+      id: check_changes
+      shell: bash
+      run: |
+        # Проверить, есть ли изменения в CHANGELOG/*.ru.yml в последнем коммите
+        # Используем git show для получения списка измененных файлов в HEAD
+        CHANGELOG_PATH="${{ inputs.changelog_path }}"
+        CHANGED_FILES=$(git show --name-only --pretty=format: HEAD | grep "^${CHANGELOG_PATH}/.*\.ru\.yml$" || true)
+        
+        if [ -n "$CHANGED_FILES" ]; then
+          echo "CHANGELOG .ru.yml files changed in last commit:"
+          echo "$CHANGED_FILES"
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        else
+          echo "No CHANGELOG .ru.yml files changed in last commit, skipping"
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Set up Python
+      if: steps.check_changes.outputs.has_changes == 'true'
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python_version }}
+
+    - name: Install dependencies
+      if: steps.check_changes.outputs.has_changes == 'true'
+      shell: bash
+      run: |
+        pip install pyyaml deep-translator packaging
+
+    - name: Find latest Russian changelog
+      if: steps.check_changes.outputs.has_changes == 'true'
+      id: find_changelog
+      shell: bash
+      run: |
+        cd "${{ inputs.changelog_path }}"
+        
+        # Найти все русские файлы и отсортировать по semver
+        python3 << 'EOF'
+        import os
+        import re
+        from packaging import version
+        
+        files = [f for f in os.listdir('.') if f.endswith('.ru.yml')]
+        
+        # Извлечь версии из имен файлов
+        versions = []
+        for f in files:
+            match = re.match(r'v(\d+\.\d+\.\d+)\.ru\.yml', f)
+            if match:
+                versions.append((version.parse(match.group(1)), f))
+        
+        if not versions:
+            print("No Russian changelog files found")
+            exit(1)
+        
+        # Отсортировать по версии (последняя версия первая)
+        versions.sort(reverse=True)
+        latest_version, latest_file = versions[0]
+        
+        # Проверить, существует ли уже английский файл
+        eng_file = latest_file.replace('.ru.yml', '.yml')
+        if os.path.exists(eng_file):
+            print(f"English file {eng_file} already exists, skipping")
+            exit(0)
+        
+        version_str = f"v{latest_version}"
+        import os
+        github_output = os.environ.get('GITHUB_OUTPUT', '/dev/stdout')
+        with open(github_output, 'a') as f:
+            f.write(f"version={version_str}\n")
+            f.write(f"ru_file={latest_file}\n")
+            f.write(f"eng_file={eng_file}\n")
+        print(f"Latest version: {version_str}, file: {latest_file}")
+        EOF
+      continue-on-error: true
+
+    - name: Translate changelog
+      if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
+      id: translate
+      shell: bash
+      env:
+        RU_FILE: ${{ steps.find_changelog.outputs.ru_file }}
+        ENG_FILE: ${{ steps.find_changelog.outputs.eng_file }}
+      run: |
+        cd "${{ inputs.changelog_path }}"
+        
+        python3 << 'EOF'
+        from deep_translator import GoogleTranslator
+        import os
+        
+        ru_file = os.environ['RU_FILE']
+        eng_file = os.environ['ENG_FILE']
+        
+        # Загрузить русский файл построчно для сохранения форматирования
+        with open(ru_file, 'r', encoding='utf-8') as f:
+            ru_lines = f.readlines()
+        
+        # Перевести содержимое построчно
+        translator = GoogleTranslator(source='ru', target='en')
+        
+        # Сохранить с сохранением оригинального форматирования
+        with open(eng_file, 'w', encoding='utf-8') as f:
+            for line in ru_lines:
+                # Пропустить пустые строки
+                if not line.strip():
+                    f.write(line)
+                    continue
+                
+                # Сохранить оригинальные отступы
+                indent = len(line) - len(line.lstrip())
+                content = line.strip()
+                
+                # Перевести содержимое строки
+                translated_content = translator.translate(content)
+                
+                # Записать переведенную строку с сохранением отступов
+                f.write(' ' * indent + translated_content + '\n')
+        
+        print(f"Translated {ru_file} to {eng_file}")
+        EOF
+
+    - name: Get current branch name
+      if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
+      id: get_branch
+      shell: bash
+      run: |
+        BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+        echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
+        echo "Current branch: $BRANCH_NAME"
+
+    - name: Commit translated changelog
+      if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
+      shell: bash
+      run: |
+        VERSION="${{ steps.find_changelog.outputs.version }}"
+        
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        git add "${{ inputs.changelog_path }}/"
+        git commit -m "Translate changelog ${VERSION} to English"
+        
+        # Пушим коммит в текущую ветку
+        git push origin HEAD
+
+    - name: Create Pull Request using GitHub CLI
+      if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        BRANCH_NAME="${{ steps.get_branch.outputs.branch }}"
+        BASE_BRANCH="${{ inputs.base_branch }}"
+        VERSION="${{ steps.find_changelog.outputs.version }}"
+        
+        # Проверить, существует ли уже PR для этой ветки
+        EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --base "$BASE_BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
+        
+        if [ -n "$EXISTING_PR" ] && [ "$EXISTING_PR" != "null" ]; then
+          echo "PR #$EXISTING_PR already exists for branch $BRANCH_NAME"
+          exit 0
+        fi
+        
+        # Создать временный файл для body PR
+        PR_BODY_FILE=$(mktemp)
+        cat > "$PR_BODY_FILE" << EOF
+        ## Changelog $VERSION
+
+        This PR contains the English translation of the Russian changelog for version $VERSION.
+
+        **Source file:** \`${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.ru_file }}\`
+        **Translated file:** \`${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.eng_file }}\`
+
+        <details>
+        <summary>Changelog content</summary>
+
+        \`\`\`yaml
+        $(cat "${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.eng_file }}")
+        \`\`\`
+
+        </details>
+        EOF
+        
+        # Создать PR
+        gh pr create \
+          --base "$BASE_BRANCH" \
+          --head "$BRANCH_NAME" \
+          --title "$VERSION" \
+          --body-file "$PR_BODY_FILE"
+        
+        # Удалить временный файл
+        rm -f "$PR_BODY_FILE"
