@@ -31,6 +31,24 @@ inputs:
   source_repo_ssh_key:
     description: "SSH private key for the source repository"
     required: false
+  cosign_vault_address:
+    description: "Vault adddress"
+    required: false
+  cosign_vault_key:
+    description: "Key in the vault"
+    required: false
+  cosign_transit_secret_engine_path:
+    description: "Transit engine secret path"
+    required: false
+  cosign_auth_role:
+    description: "Auth role"
+    required: false
+  registry_user:
+    description: "User to authenticate to registry"
+    required: false
+  registry_password:
+    description: "Password to authenticate to registry"
+    required: false
 
 runs:
   using: "composite"
@@ -124,6 +142,12 @@ runs:
         SVACE_ANALYZE_HOST: "${{ inputs.svace_analyze_host }}"
         SVACE_ANALYZE_SSH_USER: "${{ inputs.svace_analyze_ssh_user }}"
         SVACE_ENABLED: "${{ inputs.svace_enabled }}"
+        COSIGN_VAULT_ADDRESS: "${{ inputs.cosign_vault_address }}"
+        COSIGN_VAULT_KEY: "${{ inputs.cosign_vault_key }}"
+        COSIGN_TRANSIT_SECRET_ENGINE_PATH: "${{ inputs.cosign_transit_secret_engine_path }}"
+        COSIGN_AUTH_ROLE: "${{ inputs.cosign_auth_role }}"
+        REGISTRY_USER: "${{ inputs.registry_user }}"
+        REGISTRY_PASSWORD: "${{ inputs.registry_password }}"
 
     - name: Cleanup ssh-agent
       if: ${{ steps.ssh_agent.outcome != 'skipped' && always() }}
