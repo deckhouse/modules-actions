@@ -9,7 +9,7 @@ jobs:
       matrix:
         action: ["build", "deploy", "setup"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: "${{ matrix.action }}: validate action.yml against a remote schema"
         uses: cardinalby/schema-validator-action@v3
         with:
