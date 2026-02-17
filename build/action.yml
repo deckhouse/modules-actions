@@ -124,6 +124,8 @@ runs:
         SVACE_ANALYZE_HOST: "${{ inputs.svace_analyze_host }}"
         SVACE_ANALYZE_SSH_USER: "${{ inputs.svace_analyze_ssh_user }}"
         SVACE_ENABLED: "${{ inputs.svace_enabled }}"
+        WERF_LOG_DEBUG: true
+        WERF_DOCKER_REGISTRY_DEBUG: "1"
 
     - name: Cleanup ssh-agent
       if: ${{ steps.ssh_agent.outcome != 'skipped' && always() }}
