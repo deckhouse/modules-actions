@@ -14,6 +14,8 @@ runs:
 
     - name: Run Go test coverage count
       shell: bash
+      env:
+        GOTOOLCHAIN: auto
       run: |
         if [ ! -d "images" ]; then
             echo "No images/ directory found. Please run this script from the root of the repository."
