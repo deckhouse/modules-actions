@@ -90,7 +90,7 @@ runs:
     - name: Start ssh-agent
       uses: webfactory/ssh-agent@v0.9.0
       with:
-        ssh-private-key: ${{ inputs.cve_ssh_private_key }}  # только ключ, не URL
+        ssh-private-key: ${{ inputs.cve_ssh_private_key }}
 
     - name: Add host to known_hosts
       shell: bash
