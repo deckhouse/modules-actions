@@ -138,12 +138,7 @@ runs:
         else:
             # Для других языков целевой файл с языковым суффиксом
             target_file = f"{file_prefix}{version_str}.{target_lang}.yml"
-
-        # Проверить, существует ли уже целевой файл
-        if os.path.exists(target_file):
-            print(f"Target file {target_file} already exists, skipping")
-            exit(0)
-
+        
         github_output = os.environ.get('GITHUB_OUTPUT', '/dev/stdout')
         with open(github_output, 'a') as f:
             f.write(f"version=v{version_str}\n")
