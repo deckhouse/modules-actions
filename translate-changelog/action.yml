@@ -88,21 +88,21 @@ runs:
       shell: bash
       run: |
         cd "${{ inputs.changelog_path }}"
-
-        FILE_PREFIX="${{ inputs.file_prefix }}"
-        SOURCE_LANG="${{ inputs.source_lang }}"
-        TARGET_LANG="${{ inputs.target_lang }}"
-
+        
+        export FILE_PREFIX="${{ inputs.file_prefix }}"
+        export SOURCE_LANG="${{ inputs.source_lang }}"
+        export TARGET_LANG="${{ inputs.target_lang }}"
+        
         # Найти все файлы исходного языка и отсортировать по semver
         python3 << 'EOF'
         import os
         import re
         from packaging import version
-
+        
         file_prefix = os.environ.get('FILE_PREFIX', 'CHANGELOG-v')
         source_lang = os.environ.get('SOURCE_LANG', 'ru')
         target_lang = os.environ.get('TARGET_LANG', 'en')
-
+        
         # Определить паттерн файлов на основе source_lang
         if source_lang == 'en':
             # Для английского ищем файлы без языкового суффикса
@@ -112,24 +112,24 @@ runs:
             # Для других языков ищем файлы с языковым суффиксом
             file_pattern = re.compile(rf'^{re.escape(file_prefix)}(\d+\.\d+\.\d+)\.{re.escape(source_lang)}\.yml$')
             source_suffix = f'.{source_lang}'
-
+        
         files = [f for f in os.listdir('.') if file_pattern.match(f)]
-
+        
         # Извлечь версии из имен файлов
         versions = []
         for f in files:
             match = file_pattern.match(f)
             if match:
                 versions.append((version.parse(match.group(1)), f))
-
+        
         if not versions:
             print(f"No changelog files found for source language: {source_lang}")
             exit(1)
-
+        
         # Отсортировать по версии (последняя версия первая)
         versions.sort(reverse=True)
         latest_version, source_file = versions[0]
-
+        
         # Определить имя целевого файла
         version_str = f"{latest_version}"
         if target_lang == 'en':
@@ -138,12 +138,12 @@ runs:
         else:
             # Для других языков целевой файл с языковым суффиксом
             target_file = f"{file_prefix}{version_str}.{target_lang}.yml"
-
+        
         # Проверить, существует ли уже целевой файл
         if os.path.exists(target_file):
             print(f"Target file {target_file} already exists, skipping")
             exit(0)
-
+        
         github_output = os.environ.get('GITHUB_OUTPUT', '/dev/stdout')
         with open(github_output, 'a') as f:
             f.write(f"version=v{version_str}\n")
