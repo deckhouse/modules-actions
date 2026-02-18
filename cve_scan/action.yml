@@ -111,6 +111,8 @@ runs:
       env:
         TRIVY_BIN_VERSION: "v0.67.2"
         TRIVY_REPO_ID: "2181"
+        TRIVY_PROD_REGISTRY: "registry.deckhouse.io"
+        TRIVY_DEV_REGISTRY: "dev-registry.deckhouse.io"
         TRIVY_DB_URL: "${{ inputs.prod_registry }}/deckhouse/ee/security/trivy-db:2"
         TRIVY_JAVA_DB_URL: "${{ inputs.prod_registry }}/deckhouse/ee/security/trivy-java-db:1"
         TRIVY_POLICY_URL: "${{ inputs.prod_registry }}/deckhouse/ee/security/trivy-bdu:1"
