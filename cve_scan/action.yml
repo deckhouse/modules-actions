@@ -90,29 +90,21 @@ runs:
     - name: Start ssh-agent
       uses: webfactory/ssh-agent@v0.9.0
       with:
-        ssh-private-key: ${{ inputs.cve_ssh_private_key }}
+        ssh-private-key: ${{ inputs.cve_ssh_private_key }}  # только ключ, не URL
 
-    - name: Get host from repo URL
-      id: get-host
+    - name: Add host to known_hosts
       shell: bash
       run: |
         HOST=$(echo "${{ inputs.cve_test_repo_git }}" | sed -E 's/.*@([^:]+).*/\1/')
-        echo "host=$HOST" >> $GITHUB_OUTPUT
-
-    - name: Add ssh_known_hosts
-      shell: bash
-      run: |
-        HOST="${{ steps.get-host.outputs.host }}"
         mkdir -p ~/.ssh
         ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
-        ssh-keyscan -H github.com >> ~/.ssh/known_hosts 2>/dev/null || true
 
-    - name: Clone repository and copy specific files
+    - name: Clone repository
       shell: bash
       run: |
+        rm -rf /tmp/cve-scan
         git clone --depth 1 ${{ inputs.cve_test_repo_git }} /tmp/cve-scripts
-        cp /tmp/cve-scripts/*.sh /tmp/cve-scripts/*.py .
-        chmod +x *.sh *.py
+        cp /tmp/cve-scripts/* ./
 
     - name: Run Trivy CVE Scan
       shell: bash
