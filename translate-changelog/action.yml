@@ -88,21 +88,21 @@ runs:
       shell: bash
       run: |
         cd "${{ inputs.changelog_path }}"
-        
+
         export FILE_PREFIX="${{ inputs.file_prefix }}"
         export SOURCE_LANG="${{ inputs.source_lang }}"
         export TARGET_LANG="${{ inputs.target_lang }}"
-        
+
         # Найти все файлы исходного языка и отсортировать по semver
         python3 << 'EOF'
         import os
         import re
         from packaging import version
-        
+
         file_prefix = os.environ.get('FILE_PREFIX', 'CHANGELOG-v')
         source_lang = os.environ.get('SOURCE_LANG', 'ru')
         target_lang = os.environ.get('TARGET_LANG', 'en')
-        
+
         # Определить паттерн файлов на основе source_lang
         if source_lang == 'en':
             # Для английского ищем файлы без языкового суффикса
@@ -112,24 +112,24 @@ runs:
             # Для других языков ищем файлы с языковым суффиксом
             file_pattern = re.compile(rf'^{re.escape(file_prefix)}(\d+\.\d+\.\d+)\.{re.escape(source_lang)}\.yml$')
             source_suffix = f'.{source_lang}'
-        
+
         files = [f for f in os.listdir('.') if file_pattern.match(f)]
-        
+
         # Извлечь версии из имен файлов
         versions = []
         for f in files:
             match = file_pattern.match(f)
             if match:
                 versions.append((version.parse(match.group(1)), f))
-        
+
         if not versions:
             print(f"No changelog files found for source language: {source_lang}")
             exit(1)
-        
+
         # Отсортировать по версии (последняя версия первая)
         versions.sort(reverse=True)
         latest_version, source_file = versions[0]
-        
+
         # Определить имя целевого файла
         version_str = f"{latest_version}"
         if target_lang == 'en':
@@ -138,12 +138,12 @@ runs:
         else:
             # Для других языков целевой файл с языковым суффиксом
             target_file = f"{file_prefix}{version_str}.{target_lang}.yml"
-        
+
         # Проверить, существует ли уже целевой файл
         if os.path.exists(target_file):
             print(f"Target file {target_file} already exists, skipping")
             exit(0)
-        
+
         github_output = os.environ.get('GITHUB_OUTPUT', '/dev/stdout')
         with open(github_output, 'a') as f:
             f.write(f"version=v{version_str}\n")
@@ -168,48 +168,66 @@ runs:
         python3 << 'EOF'
         from deep_translator import GoogleTranslator
         import os
+        import yaml
 
         source_file = os.environ['SOURCE_FILE']
         target_file = os.environ['TARGET_FILE']
         source_lang = os.environ['SOURCE_LANG']
         target_lang = os.environ['TARGET_LANG']
 
-        # Загрузить исходный файл построчно для сохранения форматирования
+        # Загрузить YAML файл
         with open(source_file, 'r', encoding='utf-8') as f:
-            source_lines = f.readlines()
+            data = yaml.safe_load(f)
 
-        # Перевести содержимое построчно
+        # Инициализировать переводчик
         translator = GoogleTranslator(source=source_lang, target=target_lang)
 
-        # Сохранить с сохранением оригинального форматирования
+        def translate_value(value):
+            """Рекурсивно переводит значения в структуре данных"""
+            if isinstance(value, str):
+                # Переводим строку
+                try:
+                    return translator.translate(value)
+                except Exception as e:
+                    print(f"Warning: Failed to translate '{value[:50]}...': {e}")
+                    return value
+            elif isinstance(value, dict):
+                # Рекурсивно обрабатываем словарь (ключи остаются без изменений)
+                return {key: translate_value(val) for key, val in value.items()}
+            elif isinstance(value, list):
+                # Рекурсивно обрабатываем список
+                return [translate_value(item) for item in value]
+            else:
+                # Другие типы (числа, bool, None) возвращаем без изменений
+                return value
+
+        # Перевести все значения в структуре
+        translated_data = translate_value(data)
+
+        # Сохранить переведенный YAML
         with open(target_file, 'w', encoding='utf-8') as f:
-            for line in source_lines:
-                # Пропустить пустые строки
-                if not line.strip():
-                    f.write(line)
-                    continue
-
-                # Сохранить оригинальные отступы
-                indent = len(line) - len(line.lstrip())
-                content = line.strip()
-
-                # Перевести содержимое строки
-                translated_content = translator.translate(content)
-
-                # Записать переведенную строку с сохранением отступов
-                f.write(' ' * indent + translated_content + '\n')
+            yaml.dump(translated_data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
         print(f"Translated {source_file} ({source_lang}) to {target_file} ({target_lang})")
         EOF
 
-    - name: Get current branch name
+    - name: Get current branch name and create translation branch
       if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
       id: get_branch
       shell: bash
       run: |
-        BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
-        echo "branch=$BRANCH_NAME" >> $GITHUB_OUTPUT
-        echo "Current branch: $BRANCH_NAME"
+        VERSION="${{ steps.find_changelog.outputs.version }}"
+        SOURCE_LANG="${{ inputs.source_lang }}"
+        TARGET_LANG="${{ inputs.target_lang }}"
+
+        # Создать имя новой ветки для перевода
+        TRANSLATION_BRANCH="translation/${SOURCE_LANG}-to-${TARGET_LANG}/${VERSION}"
+
+        # Создать и переключиться на новую ветку
+        git checkout -b "$TRANSLATION_BRANCH"
+
+        echo "branch=$TRANSLATION_BRANCH" >> $GITHUB_OUTPUT
+        echo "Created and switched to branch: $TRANSLATION_BRANCH"
 
     - name: Commit translated changelog
       if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
@@ -241,6 +259,7 @@ runs:
         TARGET_LANG="${{ inputs.target_lang }}"
         SOURCE_FILE="${{ steps.find_changelog.outputs.source_file }}"
         TARGET_FILE="${{ steps.find_changelog.outputs.target_file }}"
+        CHANGELOG_PATH="${{ inputs.changelog_path }}"
 
         # Проверить, существует ли уже PR для этой ветки
         EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --base "$BASE_BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
@@ -263,32 +282,31 @@ runs:
           *) TARGET_LANG_NAME="$TARGET_LANG" ;;
         esac
 
-        # Создать временный файл для body PR
+        # Создать PR body файл
         PR_BODY_FILE=$(mktemp)
-        cat > "$PR_BODY_FILE" << EOF
-        ## Changelog $VERSION
-
-        This PR contains the $TARGET_LANG_NAME translation of the $SOURCE_LANG_NAME changelog for version $VERSION.
-
-        **Source file:** `${{ inputs.changelog_path }}/${SOURCE_FILE}`
-        **Translated file:** `${{ inputs.changelog_path }}/${TARGET_FILE}`
-
-        <details>
-        <summary>Changelog content</summary>
-
-        \`\`\`yaml
-        $(cat "${{ inputs.changelog_path }}/${TARGET_FILE}")
-        \`\`\`
-
-        </details>
-        EOF
-
+        
+        echo "## Changelog $VERSION" > "$PR_BODY_FILE"
+        echo "" >> "$PR_BODY_FILE"
+        echo "This PR contains the $TARGET_LANG_NAME translation of the $SOURCE_LANG_NAME changelog for version $VERSION." >> "$PR_BODY_FILE"
+        echo "" >> "$PR_BODY_FILE"
+        echo "**Source file:** \`$CHANGELOG_PATH/$SOURCE_FILE\`" >> "$PR_BODY_FILE"
+        echo "**Translated file:** \`$CHANGELOG_PATH/$TARGET_FILE\`" >> "$PR_BODY_FILE"
+        echo "" >> "$PR_BODY_FILE"
+        echo "<details>" >> "$PR_BODY_FILE"
+        echo "<summary>Changelog content</summary>" >> "$PR_BODY_FILE"
+        echo "" >> "$PR_BODY_FILE"
+        echo "\`\`\`yaml" >> "$PR_BODY_FILE"
+        cat "$CHANGELOG_PATH/$TARGET_FILE" >> "$PR_BODY_FILE"
+        echo "\`\`\`" >> "$PR_BODY_FILE"
+        echo "" >> "$PR_BODY_FILE"
+        echo "</details>" >> "$PR_BODY_FILE"
+        
         # Создать PR
         gh pr create \
           --base "$BASE_BRANCH" \
           --head "$BRANCH_NAME" \
           --title "$VERSION" \
           --body-file "$PR_BODY_FILE"
-
+        
         # Удалить временный файл
         rm -f "$PR_BODY_FILE"
