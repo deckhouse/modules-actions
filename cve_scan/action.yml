@@ -102,7 +102,7 @@ runs:
     - name: Clone repository
       shell: bash
       run: |
-        rm -rf /tmp/cve-scan
+        rm -rf /tmp/cve-scripts
         git clone --depth 1 ${{ inputs.cve_test_repo_git }} /tmp/cve-scripts
         cp /tmp/cve-scripts/* ./
 
