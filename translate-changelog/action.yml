@@ -6,6 +6,10 @@ inputs:
     description: 'Path to CHANGELOG directory'
     required: false
     default: 'CHANGELOG'
+  file_prefix:
+    description: 'Prefix for changelog files (e.g., "CHANGELOG-v" or "v")'
+    required: false
+    default: 'v'
   source_lang:
     description: 'Source language code (ru or en)'
     required: false
@@ -42,15 +46,16 @@ runs:
       run: |
         # Проверить, есть ли изменения в CHANGELOG файлах в последнем коммите
         CHANGELOG_PATH="${{ inputs.changelog_path }}"
+        FILE_PREFIX="${{ inputs.file_prefix }}"
         SOURCE_LANG="${{ inputs.source_lang }}"
 
         # Определить паттерн исходных файлов на основе source_lang
         if [ "$SOURCE_LANG" = "en" ]; then
           # Для английского ищем файлы без языкового суффикса
-          FILE_PATTERN="^${CHANGELOG_PATH}/v[0-9]+\.[0-9]+\.[0-9]+\.yml$"
+          FILE_PATTERN="^${CHANGELOG_PATH}/${FILE_PREFIX}[0-9]+\.[0-9]+\.[0-9]+\.yml$"
         else
           # Для других языков ищем файлы с языковым суффиксом
-          FILE_PATTERN="^${CHANGELOG_PATH}/v[0-9]+\.[0-9]+\.[0-9]+\.${SOURCE_LANG}\.yml$"
+          FILE_PATTERN="^${CHANGELOG_PATH}/${FILE_PREFIX}[0-9]+\.[0-9]+\.[0-9]+\.${SOURCE_LANG}\.yml$"
         fi
 
         # Получить список измененных файлов в последнем коммите
@@ -84,6 +89,7 @@ runs:
       run: |
         cd "${{ inputs.changelog_path }}"
 
+        FILE_PREFIX="${{ inputs.file_prefix }}"
         SOURCE_LANG="${{ inputs.source_lang }}"
         TARGET_LANG="${{ inputs.target_lang }}"
 
@@ -93,17 +99,18 @@ runs:
         import re
         from packaging import version
 
+        file_prefix = os.environ.get('FILE_PREFIX', 'CHANGELOG-v')
         source_lang = os.environ.get('SOURCE_LANG', 'ru')
         target_lang = os.environ.get('TARGET_LANG', 'en')
 
         # Определить паттерн файлов на основе source_lang
         if source_lang == 'en':
             # Для английского ищем файлы без языкового суффикса
-            file_pattern = re.compile(r'^v(\d+\.\d+\.\d+)\.yml$')
+            file_pattern = re.compile(rf'^{re.escape(file_prefix)}(\d+\.\d+\.\d+)\.yml$')
             source_suffix = ''
         else:
             # Для других языков ищем файлы с языковым суффиксом
-            file_pattern = re.compile(rf'^v(\d+\.\d+\.\d+)\.{re.escape(source_lang)}\.yml$')
+            file_pattern = re.compile(rf'^{re.escape(file_prefix)}(\d+\.\d+\.\d+)\.{re.escape(source_lang)}\.yml$')
             source_suffix = f'.{source_lang}'
 
         files = [f for f in os.listdir('.') if file_pattern.match(f)]
@@ -124,13 +131,13 @@ runs:
         latest_version, source_file = versions[0]
 
         # Определить имя целевого файла
-        version_str = f"v{latest_version}"
+        version_str = f"{latest_version}"
         if target_lang == 'en':
             # Для английского целевой файл без языкового суффикса
-            target_file = f"{version_str}.yml"
+            target_file = f"{file_prefix}{version_str}.yml"
         else:
             # Для других языков целевой файл с языковым суффиксом
-            target_file = f"{version_str}.{target_lang}.yml"
+            target_file = f"{file_prefix}{version_str}.{target_lang}.yml"
 
         # Проверить, существует ли уже целевой файл
         if os.path.exists(target_file):
@@ -139,10 +146,10 @@ runs:
 
         github_output = os.environ.get('GITHUB_OUTPUT', '/dev/stdout')
         with open(github_output, 'a') as f:
-            f.write(f"version={version_str}\n")
+            f.write(f"version=v{version_str}\n")
             f.write(f"source_file={source_file}\n")
             f.write(f"target_file={target_file}\n")
-        print(f"Latest version: {version_str}, source: {source_file}, target: {target_file}")
+        print(f"Latest version: v{version_str}, source: {source_file}, target: {target_file}")
         EOF
       continue-on-error: true
 
