@@ -50,7 +50,7 @@ inputs:
   scan_several_lastest_releases:
     description: 'Scan multiple latest releases (true/false)'
     required: false
-    default: 'false'
+    default: 'False'
   latest_releases_amount:
     description: 'Number of latest releases to scan when scan_several_lastest_releases=true'
     required: false
@@ -66,7 +66,7 @@ inputs:
   release_in_dev:
     description: 'If true, release tag will be searched in dev registry instead of prod'
     required: false
-    default: 'false'
+    default: 'False'
   digest_from_werf:
     description: 'Path to werf images tags file (for CSE external modules)'
     required: false
@@ -74,7 +74,7 @@ inputs:
   scan_users:
     description: 'Enable user validation scan for CSE (true/false)'
     required: false
-    default: 'false'
+    default: 'False'
   workdir:
     description: 'Working directory for temporary files'
     required: false
@@ -82,7 +82,7 @@ inputs:
   trivy_reports_log_output:
     description: 'Trivy log output level (0=off, 1=CVE only, 2=CVE+License)'
     required: false
-    default: '2'
+    default: '1'
 
 runs:
   using: "composite"
