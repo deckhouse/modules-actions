@@ -217,15 +217,27 @@ runs:
         VERSION="${{ steps.find_changelog.outputs.version }}"
         SOURCE_LANG="${{ inputs.source_lang }}"
         TARGET_LANG="${{ inputs.target_lang }}"
-
+        
         # Создать имя новой ветки для перевода
         TRANSLATION_BRANCH="translation/${SOURCE_LANG}-to-${TARGET_LANG}/${VERSION}"
-
-        # Создать и переключиться на новую ветку
-        git checkout -b "$TRANSLATION_BRANCH"
-
+        
+        # Проверить существует ли ветка локально или на remote
+        if git show-ref --verify --quiet "refs/heads/$TRANSLATION_BRANCH"; then
+          # Ветка существует локально, переключаемся на нее
+          git checkout "$TRANSLATION_BRANCH"
+          echo "Switched to existing local branch: $TRANSLATION_BRANCH"
+        elif git ls-remote --heads origin "$TRANSLATION_BRANCH" | grep -q "$TRANSLATION_BRANCH"; then
+          # Ветка существует на remote, получаем ее
+          git fetch origin "$TRANSLATION_BRANCH"
+          git checkout -b "$TRANSLATION_BRANCH" "origin/$TRANSLATION_BRANCH"
+          echo "Checked out existing remote branch: $TRANSLATION_BRANCH"
+        else
+          # Ветка не существует, создаем новую
+          git checkout -b "$TRANSLATION_BRANCH"
+          echo "Created new branch: $TRANSLATION_BRANCH"
+        fi
+        
         echo "branch=$TRANSLATION_BRANCH" >> $GITHUB_OUTPUT
-        echo "Created and switched to branch: $TRANSLATION_BRANCH"
 
     - name: Commit translated changelog
       if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
@@ -237,12 +249,12 @@ runs:
 
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-
+        
         git add "${{ inputs.changelog_path }}/"
         git commit -m "Translate changelog ${VERSION} from ${SOURCE_LANG} to ${TARGET_LANG}"
-
-        # Пушим коммит в текущую ветку
-        git push origin HEAD
+        
+        # Пушим коммит в текущую ветку (force push, так как обновляем перевод)
+        git push -f origin HEAD
 
     - name: Create Pull Request using GitHub CLI
       if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
