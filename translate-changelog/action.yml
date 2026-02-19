@@ -151,6 +151,36 @@ runs:
         EOF
       continue-on-error: true
 
+    - name: Get current branch name and create translation branch
+      if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
+      id: get_branch
+      shell: bash
+      run: |
+        VERSION="${{ steps.find_changelog.outputs.version }}"
+        SOURCE_LANG="${{ inputs.source_lang }}"
+        TARGET_LANG="${{ inputs.target_lang }}"
+        
+        # Создать имя новой ветки для перевода
+        TRANSLATION_BRANCH="translation/${SOURCE_LANG}-to-${TARGET_LANG}/${VERSION}"
+        
+        # Проверить существует ли ветка локально или на remote
+        if git show-ref --verify --quiet "refs/heads/$TRANSLATION_BRANCH"; then
+          # Ветка существует локально, переключаемся на нее
+          git checkout "$TRANSLATION_BRANCH"
+          echo "Switched to existing local branch: $TRANSLATION_BRANCH"
+        elif git ls-remote --heads origin "$TRANSLATION_BRANCH" | grep -q "$TRANSLATION_BRANCH"; then
+          # Ветка существует на remote, получаем ее
+          git fetch origin "$TRANSLATION_BRANCH"
+          git checkout -b "$TRANSLATION_BRANCH" "origin/$TRANSLATION_BRANCH"
+          echo "Checked out existing remote branch: $TRANSLATION_BRANCH"
+        else
+          # Ветка не существует, создаем новую
+          git checkout -b "$TRANSLATION_BRANCH"
+          echo "Created new branch: $TRANSLATION_BRANCH"
+        fi
+        
+        echo "branch=$TRANSLATION_BRANCH" >> $GITHUB_OUTPUT
+
     - name: Translate changelog
       if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
       id: translate
@@ -208,36 +238,6 @@ runs:
 
         print(f"Translated {source_file} ({source_lang}) to {target_file} ({target_lang})")
         EOF
-
-    - name: Get current branch name and create translation branch
-      if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
-      id: get_branch
-      shell: bash
-      run: |
-        VERSION="${{ steps.find_changelog.outputs.version }}"
-        SOURCE_LANG="${{ inputs.source_lang }}"
-        TARGET_LANG="${{ inputs.target_lang }}"
-        
-        # Создать имя новой ветки для перевода
-        TRANSLATION_BRANCH="translation/${SOURCE_LANG}-to-${TARGET_LANG}/${VERSION}"
-        
-        # Проверить существует ли ветка локально или на remote
-        if git show-ref --verify --quiet "refs/heads/$TRANSLATION_BRANCH"; then
-          # Ветка существует локально, переключаемся на нее
-          git checkout "$TRANSLATION_BRANCH"
-          echo "Switched to existing local branch: $TRANSLATION_BRANCH"
-        elif git ls-remote --heads origin "$TRANSLATION_BRANCH" | grep -q "$TRANSLATION_BRANCH"; then
-          # Ветка существует на remote, получаем ее
-          git fetch origin "$TRANSLATION_BRANCH"
-          git checkout -b "$TRANSLATION_BRANCH" "origin/$TRANSLATION_BRANCH"
-          echo "Checked out existing remote branch: $TRANSLATION_BRANCH"
-        else
-          # Ветка не существует, создаем новую
-          git checkout -b "$TRANSLATION_BRANCH"
-          echo "Created new branch: $TRANSLATION_BRANCH"
-        fi
-        
-        echo "branch=$TRANSLATION_BRANCH" >> $GITHUB_OUTPUT
 
     - name: Commit translated changelog
       if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
