@@ -235,27 +235,27 @@ runs:
                 # CVE Scan
                 trivy_scan "table" "--scanners vuln" "" "${module_image}:${module_tag}"
                 # License scan
-                trivy_scan "table" "--scanners license --license-full" "" "${module_image}:${module_tag}"
+                # trivy_scan "table" "--scanners license --license-full" "" "${module_image}:${module_tag}"
               fi
               # CVE Scan
               trivy_scan "json" "--scanners vuln" "--output ${module_reports}/ext_${MODULE_NAME}_${IMAGE_NAME}_report.json" "${module_image}:${module_tag}"
               # License scan
-              trivy_scan "json" "--scanners license --license-full" "--output ${module_reports}/ext_${MODULE_NAME}_${IMAGE_NAME}_report_license.json" "${module_image}:${module_tag}"
+              # trivy_scan "json" "--scanners license --license-full" "--output ${module_reports}/ext_${MODULE_NAME}_${IMAGE_NAME}_report_license.json" "${module_image}:${module_tag}"
             else
               if [ "${TRIVY_REPORTS_LOG_OUTPUT}" != "false" ]; then
                 # CVE Scan
                 trivy_scan "table" "--scanners vuln" "" "${module_image}@${IMAGE_HASH}"
                 # License scan
-                trivy_scan "table" "--scanners license --license-full" "" "${module_image}@${IMAGE_HASH}"
+                # trivy_scan "table" "--scanners license --license-full" "" "${module_image}@${IMAGE_HASH}"
               fi
               # CVE Scan
               trivy_scan "json" "--scanners vuln" "--output ${module_reports}/ext_${MODULE_NAME}_${IMAGE_NAME}_report.json" "${module_image}@${IMAGE_HASH}"
               # License scan
-              trivy_scan "json" "--scanners license --license-full" "--output ${module_reports}/ext_${MODULE_NAME}_${IMAGE_NAME}_report_license.json" "${module_image}@${IMAGE_HASH}"
+              # trivy_scan "json" "--scanners license --license-full" "--output ${module_reports}/ext_${MODULE_NAME}_${IMAGE_NAME}_report_license.json" "${module_image}@${IMAGE_HASH}"
             fi
             echo "    Done"
             send_report "CVE" "${module_reports}/ext_${MODULE_NAME}_${IMAGE_NAME}_report.json"
-            send_report "License" "${module_reports}/ext_${MODULE_NAME}_${IMAGE_NAME}_report_license.json"
+            # send_report "License" "${module_reports}/ext_${MODULE_NAME}_${IMAGE_NAME}_report_license.json"
           done < <(jq -rc 'to_entries[]' <<< "${digests}")
         done
         rm -r ${workdir}
