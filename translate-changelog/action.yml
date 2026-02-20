@@ -239,84 +239,28 @@ runs:
         print(f"Translated {source_file} ({source_lang}) to {target_file} ({target_lang})")
         EOF
 
-    - name: Commit translated changelog
+    - name: Create Pull Request
       if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
-      shell: bash
-      run: |
-        VERSION="${{ steps.find_changelog.outputs.version }}"
-        SOURCE_LANG="${{ inputs.source_lang }}"
-        TARGET_LANG="${{ inputs.target_lang }}"
+      uses: peter-evans/create-pull-request@v7
+      with:
+        token: ${{ inputs.github_token }}
+        commit-message: Translate changelog ${{ steps.find_changelog.outputs.version }} from ${{ inputs.source_lang }} to ${{ inputs.target_lang }}
+        branch: translation/${{ inputs.source_lang }}-to-${{ inputs.target_lang }}/${{ steps.find_changelog.outputs.version }}
+        delete-branch: false
+        title: ${{ steps.find_changelog.outputs.version }}
+        body: |
+          ## Changelog ${{ steps.find_changelog.outputs.version }}
+          
+          This PR contains the ${{ inputs.target_lang == 'ru' && 'Russian' || 'English' }} translation of the ${{ inputs.source_lang == 'ru' && 'Russian' || 'English' }} changelog for version ${{ steps.find_changelog.outputs.version }}.
+          
+          **Source file:** `${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.source_file }}`
+          **Translated file:** `${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.target_file }}`
+          
+          <details>
+          <summary>Changelog content</summary>
+          
+          The translated changelog file has been generated and is ready for review.
+          
+          </details>
+        base: ${{ inputs.base_branch }}
 
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        
-        git add "${{ inputs.changelog_path }}/"
-        git commit -m "Translate changelog ${VERSION} from ${SOURCE_LANG} to ${TARGET_LANG}"
-        
-        # Пушим коммит в текущую ветку (force push, так как обновляем перевод)
-        git push -f origin HEAD
-
-    - name: Create Pull Request using GitHub CLI
-      if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
-      shell: bash
-      env:
-        GITHUB_TOKEN: ${{ inputs.github_token }}
-      run: |
-        BRANCH_NAME="${{ steps.get_branch.outputs.branch }}"
-        BASE_BRANCH="${{ inputs.base_branch }}"
-        VERSION="${{ steps.find_changelog.outputs.version }}"
-        SOURCE_LANG="${{ inputs.source_lang }}"
-        TARGET_LANG="${{ inputs.target_lang }}"
-        SOURCE_FILE="${{ steps.find_changelog.outputs.source_file }}"
-        TARGET_FILE="${{ steps.find_changelog.outputs.target_file }}"
-        CHANGELOG_PATH="${{ inputs.changelog_path }}"
-
-        # Проверить, существует ли уже PR для этой ветки
-        EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --base "$BASE_BRANCH" --json number --jq '.[0].number' 2>/dev/null || echo "")
-
-        if [ -n "$EXISTING_PR" ] && [ "$EXISTING_PR" != "null" ]; then
-          echo "PR #$EXISTING_PR already exists for branch $BRANCH_NAME"
-          exit 0
-        fi
-
-        # Определить полные названия языков для PR
-        case "$SOURCE_LANG" in
-          ru) SOURCE_LANG_NAME="Russian" ;;
-          en) SOURCE_LANG_NAME="English" ;;
-          *) SOURCE_LANG_NAME="$SOURCE_LANG" ;;
-        esac
-
-        case "$TARGET_LANG" in
-          ru) TARGET_LANG_NAME="Russian" ;;
-          en) TARGET_LANG_NAME="English" ;;
-          *) TARGET_LANG_NAME="$TARGET_LANG" ;;
-        esac
-
-        # Создать PR body файл
-        PR_BODY_FILE=$(mktemp)
-        
-        echo "## Changelog $VERSION" > "$PR_BODY_FILE"
-        echo "" >> "$PR_BODY_FILE"
-        echo "This PR contains the $TARGET_LANG_NAME translation of the $SOURCE_LANG_NAME changelog for version $VERSION." >> "$PR_BODY_FILE"
-        echo "" >> "$PR_BODY_FILE"
-        echo "**Source file:** \`$CHANGELOG_PATH/$SOURCE_FILE\`" >> "$PR_BODY_FILE"
-        echo "**Translated file:** \`$CHANGELOG_PATH/$TARGET_FILE\`" >> "$PR_BODY_FILE"
-        echo "" >> "$PR_BODY_FILE"
-        echo "<details>" >> "$PR_BODY_FILE"
-        echo "<summary>Changelog content</summary>" >> "$PR_BODY_FILE"
-        echo "" >> "$PR_BODY_FILE"
-        echo "\`\`\`yaml" >> "$PR_BODY_FILE"
-        cat "$CHANGELOG_PATH/$TARGET_FILE" >> "$PR_BODY_FILE"
-        echo "\`\`\`" >> "$PR_BODY_FILE"
-        echo "" >> "$PR_BODY_FILE"
-        echo "</details>" >> "$PR_BODY_FILE"
-        
-        # Создать PR
-        gh pr create \
-          --base "$BASE_BRANCH" \
-          --head "$BRANCH_NAME" \
-          --title "$VERSION" \
-          --body-file "$PR_BODY_FILE"
-        
-        # Удалить временный файл
-        rm -f "$PR_BODY_FILE"
