@@ -303,10 +303,10 @@ runs:
               if [ "${TRIVY_REPORTS_LOG_OUTPUT}" -ne 0 ]; then
                 # CVE Scan
                 trivy_scan "table" "--scanners vuln" "" "${module_image}:${module_tag}"
-                if [ "${TRIVY_REPORTS_LOG_OUTPUT}" -eq 2 ]; then
-                  # License scan
-                  # trivy_scan "table" "--scanners license --license-full" "" "${module_image}:${module_tag}"
-                fi
+                # if [ "${TRIVY_REPORTS_LOG_OUTPUT}" -eq 2 ]; then
+                #   # License scan
+                #   trivy_scan "table" "--scanners license --license-full" "" "${module_image}:${module_tag}"
+                # fi
               fi
               # CVE Scan
               trivy_scan "json" "--scanners vuln" "--output ${module_reports}/ext_${MODULE_NAME}_${IMAGE_NAME}_report.json" "${module_image}:${module_tag}"
@@ -316,10 +316,10 @@ runs:
               if [ "${TRIVY_REPORTS_LOG_OUTPUT}" -ne 0 ]; then
                 # CVE Scan
                 trivy_scan "table" "--scanners vuln" "" "${module_image}@${IMAGE_HASH}"
-                if [ "${TRIVY_REPORTS_LOG_OUTPUT}" -eq 2 ]; then
-                  # License scan
-                  # trivy_scan "table" "--scanners license --license-full" "" "${module_image}@${IMAGE_HASH}"
-                fi
+                # if [ "${TRIVY_REPORTS_LOG_OUTPUT}" -eq 2 ]; then
+                #   # License scan
+                #   trivy_scan "table" "--scanners license --license-full" "" "${module_image}@${IMAGE_HASH}"
+                # fi
               fi
               # CVE Scan
               trivy_scan "json" "--scanners vuln" "--output ${module_reports}/ext_${MODULE_NAME}_${IMAGE_NAME}_report.json" "${module_image}@${IMAGE_HASH}"
