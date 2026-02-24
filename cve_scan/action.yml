@@ -20,7 +20,7 @@ inputs:
     description: 'Password for dev-registry authentication'
     required: true
   codeowners_repo_token:
-    description: 'GitLab token for downloading CODEOWNERS configmap from private repository'
+    description: 'Fox token for downloading CODEOWNERS configmap'
     required: true
   deckhouse_private_repo:
     description: 'Deckhouse private repository'
@@ -38,21 +38,21 @@ inputs:
     description: 'Scan type: deckhouse | external_modules | CSE'
     required: true
   cve_test_repo_git:
-    description: 'cve_scan.sh repo'
+    description: 'cve_scan repo'
     required: true
   cve_ssh_private_key:
-    description: 'cve_scan.sh repo key'
+    description: 'cve_scan repo key'
     required: true
   external_module_name:
-    description: 'External module name (required when case=external_modules)'
+    description: 'External module name (required when case=External Modules)'
     required: false
     default: ''
-  scan_several_lastest_releases:
-    description: 'Scan multiple latest releases (true/false)'
+  scan_several_latest_releases:
+    description: 'Scan multiple latest releases (True/False)'
     required: false
     default: 'False'
   latest_releases_amount:
-    description: 'Number of latest releases to scan when scan_several_lastest_releases=true'
+    description: 'Number of latest releases to scan when scan_several_latest_releases=true'
     required: false
     default: '3'
   module_prod_registry_custom_path:
@@ -72,7 +72,7 @@ inputs:
     required: false
     default: 'images_tags_werf'
   scan_users:
-    description: 'Enable user validation scan for CSE (true/false)'
+    description: 'Enable user validation scan for CSE (True/False)'
     required: false
     default: 'False'
   workdir:
@@ -128,7 +128,7 @@ runs:
         EXTERNAL_MODULE_NAME: "${{ inputs.external_module_name }}"
         RELEASE_IN_DEV: "${{ inputs.release_in_dev }}"
         SCAN_USERS: "${{ inputs.scan_users }}"
-        SCAN_SEVERAL_LATEST_RELEASES: "${{ inputs.scan_several_lastest_releases }}"
+        SCAN_SEVERAL_LATEST_RELEASES: "${{ inputs.scan_several_latest_releases }}"
         LATEST_RELEASES_AMOUNT: "${{ inputs.latest_releases_amount }}"
         MODULE_PROD_REGISTRY_CUSTOM_PATH: "${{ inputs.module_prod_registry_custom_path }}"
         MODULE_DEV_REGISTRY_CUSTOM_PATH: "${{ inputs.module_dev_registry_custom_path }}"
