@@ -1,70 +1,70 @@
 # CVE Scan CI Integration
 
 ## Description
-This CI file will run a Trivy CVE scan against the module images and its submodule images, and then upload the reports to DefectDojo.  
-The script will detect release or dev tag of module image is used and then construct registry location by itself. If your module located in registries by not standart paths - you may want to define custom path by *module_prod_registry_custom_path* and *module_dev_registry_custom_path* variables.  
-CI Use cases:  
-- Scan by scheduler
-  - Scan main branch and several latest releases 2-3 times a week
-- Scan on PR
-  - Scan images on pull request to check if no new vulnerabilities are present or to ensure if they are closed.
-- Manual scan
-  - Scan specified release by entering semver minor version of target release in *release_branch* variable.
-  - Scan main branch and several latest releases by setting *scan_several_lastest_releases* to "true" and optionally defining amount of latest minor releases by setting a number into *latest_releases_amount* variable.
-  - Scan only main branch just by running pipeline
+This CI runs a Trivy CVE and License scan against module images and their submodule images, then uploads reports to DefectDojo.  
+The action clones the [cve-scan](https://github.com/deckhouse/cve-scan) scripts and runs them. The script resolves the registry and tag (release vs dev) from *source_tag* and *case*. If your module uses non-standard paths in registries, set *module_prod_registry_custom_path* and *module_dev_registry_custom_path*.
 
-## Variables
+**CI use cases:**
+- **Scheduled** — scan main and several latest releases (e.g. 2–3 times a week)
+- **On PR** — scan images for the PR to ensure no new vulnerabilities or that known ones are closed
+- **Manual** — scan a specific release (*source_tag* as semver minor, e.g. `1.23`), or main + several latest releases (*scan_several_latest_releases* = true, *latest_releases_amount*), or only main by running the workflow
 
-### workflow_dispatch level
+## Action reference
+Use the reusable action:
+```yaml
+deckhouse/modules-actions/cve_scan@main
 ```
-release_branch - Optional. Set minor version of release you want to scan. e.g.: 1.23
-scan_several_lastest_releases - Optional. Whether to scan last several releases or not. true/false. For scheduled pipelines it is always true. Default is: false.
-latest_releases_amount - Optional. Number of latest releases to scan. Default is: 3
-severity - Optional. Vulnerabilities severity to scan. Default is: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
-```
+(Replace `main` with the branch or tag your repo uses.)
 
-### Job level
+## Inputs
 
-#### Mandatory
-```
-tag - module image tag
-module_name - module name
-dd_url - URL to defectDojo
-dd_token - token of defectDojo to upload reports
-deckhouse_private_repo - url to private repo
-prod_registry - Must be deckhouse prod registry, used to get trivy databases and release images
-prod_registry_user - Username to log in to deckhouse prod registry
-prod_registry_password - Password to log in to deckhouse prod registry
-dev_registry - Must be deckhouse dev registry, used to get dev images
-dev_registry_user - Username to log in to deckhouse dev registry
-dev_registry_password - Password to log in to deckhouse dev registry
-```
-#### Optional
-```
-scan_several_lastest_releases - true/false. Whether to scan last several releases or not. For scheduled pipelines override will not work as value is always true
-latest_releases_amount - Number of latest minor releases to scan. Latest patch versions of latest N minor versions will be taken. Default is: 3
-severity - Vulnerabilities severity to scan. Default is: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
-module_prod_registry_custom_path - Module custom path in prod registry. Example: flant/modules
-module_dev_registry_custom_path - Module custom path in dev registry. Example: flant/modules
-```
+### workflow_dispatch (optional inputs)
+| Input | Description |
+|-------|-------------|
+| `release_branch` / source_tag | Optional. Minor version to scan, e.g. `1.23`, or leave empty for default branch |
+| `scan_several_latest_releases` | Optional. Scan several latest releases. `true`/`false`. For scheduled runs it is always true. Default: `false` |
+| `latest_releases_amount` | Optional. Number of latest releases to scan. Default: `3` |
+| `release_in_dev` | Optional. If `true`, release tag is taken from dev registry. Default: `false` |
+| `trivy_reports_log_output` | Optional. Trivy report verbosity in logs: `0` — off, `1` — CVE/FS only, `2` — CVE + License. Default: `1` |
+| `external_module_name` | Optional. For *case* = "External Modules": the module name whose tag is scanned |
 
-### GitHub Masked variables
-```
-dd_url - URL to defectDojo
-dd_token - token of defectDojo to upload reports
-deckhouse_private_repo - url to private repo
-prod_registry - Must be deckhouse prod registry, used to get trivy databases and release images
-prod_registry_user - Username to log in to deckhouse prod registry
-prod_registry_password - Password to log in to deckhouse prod registry
-dev_registry - Must be deckhouse dev registry, used to get dev images
-dev_registry_user - Username to log in to deckhouse dev registry
-dev_registry_password - Password to log in to deckhouse dev registry
-```
+### Job level — mandatory (action inputs)
+| Input | Description |
+|-------|-------------|
+| `source_tag` | Tag to scan: e.g. `main`, `v1.74.3`, `pr123`, `release-1.73` |
+| `case` | Scan type: `deckhouse` \| `External Modules` \| `CSE` |
+| `dd_url` | DefectDojo API URL |
+| `dd_token` | DefectDojo API token |
+| `prod_registry` | Prod registry host (e.g. for release images and Trivy DB) |
+| `prod_registry_user` | Prod registry username |
+| `prod_registry_password` | Prod registry password |
+| `dev_registry` | Dev registry host (e.g. for branch/PR images) |
+| `dev_registry_user` | Dev registry username |
+| `dev_registry_password` | Dev registry password |
+| `codeowners_repo_token` | Token for CODEOWNERS configmap |
+| `deckhouse_private_repo` | Deckhouse private repo URL (e.g. GitLab for Trivy binary and configmap) |
+| `cve_test_repo_git` | cve-scan repo clone URL (SSH) |
+| `cve_ssh_private_key` | SSH key for cloning cve-scan repo |
+
+### Job level — optional
+| Input | Description |
+|-------|-------------|
+| `external_module_name` | Required when *case* = "External Modules". Module name in registry path |
+| `scan_several_latest_releases` | `True`/`False`. For scheduled runs this is typically overridden to true |
+| `latest_releases_amount` | Number of latest minor releases to scan. Default: `3` |
+| `release_in_dev` | If true, look for release tag in dev registry. Default: `False` |
+| `trivy_reports_log_output` | `0` \| `1` \| `2`. Default: `1` |
+| `module_prod_registry_custom_path` | Custom path for module in prod registry. Default: `deckhouse/fe/modules` |
+| `module_dev_registry_custom_path` | Custom path for module in dev registry. Default: `sys/deckhouse-oss/modules` |
+| `workdir` | Working directory for scan artifacts. Default: `cve-scan` |
+
+### Sensitive inputs (mask in logs)
+`dd_url`, `dd_token`, `deckhouse_private_repo`, registry credentials, `codeowners_repo_token`, `cve_ssh_private_key`.
 
 ## How to include
 
-Set trigger rules with scheduler, manual and pull requests in your cve scan CI file:  
-```
+### Triggers
+```yaml
 on:
   schedule:
     - cron: '0 01 * * 0,3'
@@ -76,62 +76,116 @@ on:
   workflow_dispatch:
     inputs:
       release_branch:
-        description: 'Optional. Set minor version of release you want to scan. e.g.: 1.23'
+        description: 'Optional. Minor version to scan. e.g.: 1.23'
         required: false
-      scan_several_lastest_releases:
-        description: 'Optional. Whether to scan last several releases or not. true/false. For scheduled pipelines it is always true. Default is: false.'
+      scan_several_latest_releases:
+        description: 'Optional. Scan several latest releases. true/false. Default: false.'
         required: false
       latest_releases_amount:
-        description: 'Optional. Number of latest releases to scan. Default is: 3'
+        description: 'Optional. Number of latest releases to scan. Default: 3'
         required: false
-      severity:
-        description: 'Optional. Vulnerabilities severity to scan. Default is: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
+      release_in_dev:
+        description: 'If true, release tag is taken from dev registry. Default: false'
+        required: false
+      trivy_reports_log_output:
+        description: 'Optional. 0=off, 1=CVE only, 2=CVE+License. Default: 1'
+        required: false
+      external_module_name:
+        description: 'For External Modules: module name to scan'
         required: false
 ```
 
-Put the following jobs into required place of you GitHub Action file (usually after build step/job if exist):  
-```
+### Example: External Modules (e.g. csi-ceph)
+Secrets are often provided via BOB (`hashicorp/vault-action`); use `steps.secrets.outputs.*` for registry and DefectDojo credentials.
+
+```yaml
   cve_scan_on_pr:
     if: github.event_name == 'pull_request'
     name: CVE scan for PR
+    runs-on: [self-hosted, regular]
     needs: [build_dev]
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: deckhouse/modules-actions/cve_scan@v3
+      # Optional: split repo name, import secrets from Vault (see your repo’s pattern)
+      - uses: deckhouse/modules-actions/cve_scan@main
         with:
-          tag: pr${{ github.event.number }}
-          module_name: ${{ vars.MODULE_NAME }}
-          dd_url: ${{ secrets.DEFECTDOJO_HOST }}
-          dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
-          prod_registry: ${{ secrets.PROD_READ_REGISTRY }}
-          prod_registry_user: ${{ secrets.PROD_MODULES_READ_REGISTRY_USER }}
-          prod_registry_password: ${{ secrets.PROD_MODULES_READ_REGISTRY_PASSWORD }}
-          dev_registry: ${{ secrets.DEV_REGISTRY }}
-          dev_registry_user: ${{ secrets.DEV_MODULES_REGISTRY_USER }}
-          dev_registry_password: ${{ secrets.DEV_MODULES_REGISTRY_PASSWORD }}
-          deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
+          source_tag: 'pr${{ github.event.number }}'
+          case: "External Modules"
+          external_module_name: ${{ vars.MODULE_NAME }}
+          dd_url: ${{ steps.secrets.outputs.DEFECTDOJO_URL }}
+          dd_token: ${{ steps.secrets.outputs.DEFECTDOJO_API_TOKEN }}
+          prod_registry: ${{ steps.secrets.outputs.PROD_READ_REGISTRY }}
+          prod_registry_user: ${{ steps.secrets.outputs.PROD_READ_REGISTRY_USER }}
+          prod_registry_password: ${{ steps.secrets.outputs.PROD_READ_REGISTRY_PASSWORD }}
+          dev_registry: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_HOST }}
+          dev_registry_user: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_USER }}
+          dev_registry_password: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_PASSWORD }}
+          deckhouse_private_repo: ${{ steps.secrets.outputs.DECKHOUSE_PRIVATE_REPO }}
+          codeowners_repo_token: ${{ steps.secrets.outputs.CODEOWNERS_REPO_TOKEN }}
+          cve_test_repo_git: ${{ steps.secrets.outputs.CVE_TEST_REPO_GIT }}
+          cve_ssh_private_key: ${{ steps.secrets.outputs.CVE_TEST_SSH_PRIVATE_KEY }}
+          trivy_reports_log_output: "1"
+
   cve_scan:
     if: github.event_name != 'pull_request'
     name: Regular CVE scan
+    runs-on: [self-hosted, regular]
+    needs: [build_dev]
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: deckhouse/modules-actions/cve_scan@v3
+      # Optional: import secrets from Vault
+      - uses: deckhouse/modules-actions/cve_scan@main
         with:
-          tag: ${{ github.event.inputs.release_branch || github.event.repository.default_branch }}
-          module_name: ${{ vars.MODULE_NAME }}
-          dd_url: ${{ secrets.DEFECTDOJO_HOST }}
-          dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
-          prod_registry: ${{ secrets.PROD_READ_REGISTRY }}
-          prod_registry_user: ${{ secrets.PROD_MODULES_READ_REGISTRY_USER }}
-          prod_registry_password: ${{ secrets.PROD_MODULES_READ_REGISTRY_PASSWORD }}
-          dev_registry: ${{ secrets.DEV_REGISTRY }}
-          dev_registry_user: ${{ secrets.DEV_MODULES_REGISTRY_USER }}
-          dev_registry_password: ${{ secrets.DEV_MODULES_REGISTRY_PASSWORD }}
-          deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
-          scan_several_lastest_releases: ${{ github.event.inputs.scan_several_lastest_releases }}
+          source_tag: ${{ github.event.inputs.release_branch || github.event.repository.default_branch }}
+          case: "External Modules"
+          external_module_name: ${{ vars.MODULE_NAME }}
+          dd_url: ${{ steps.secrets.outputs.DEFECTDOJO_URL }}
+          dd_token: ${{ steps.secrets.outputs.DEFECTDOJO_API_TOKEN }}
+          prod_registry: ${{ steps.secrets.outputs.PROD_READ_REGISTRY }}
+          prod_registry_user: ${{ steps.secrets.outputs.PROD_READ_REGISTRY_USER }}
+          prod_registry_password: ${{ steps.secrets.outputs.PROD_READ_REGISTRY_PASSWORD }}
+          dev_registry: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_HOST }}
+          dev_registry_user: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_USER }}
+          dev_registry_password: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_PASSWORD }}
+          deckhouse_private_repo: ${{ steps.secrets.outputs.DECKHOUSE_PRIVATE_REPO }}
+          scan_several_latest_releases: ${{ github.event.inputs.scan_several_latest_releases || 'True' }}
           latest_releases_amount: ${{ github.event.inputs.latest_releases_amount || '3' }}
-          severity: ${{ github.event.inputs.severity }}
+          release_in_dev: ${{ github.event.inputs.release_in_dev || 'False' }}
+          codeowners_repo_token: ${{ steps.secrets.outputs.CODEOWNERS_REPO_TOKEN }}
+          cve_test_repo_git: ${{ steps.secrets.outputs.CVE_TEST_REPO_GIT }}
+          cve_ssh_private_key: ${{ steps.secrets.outputs.CVE_TEST_SSH_PRIVATE_KEY }}
+          trivy_reports_log_output: "1"
 ```
 
-Usage example can be found [here](../.examples/cve_scan.yml)
+### Example: Deckhouse core (case: deckhouse)
+For the main Deckhouse repo, *case* is `deckhouse` and *source_tag* is set from workflow (e.g. from a previous step like `steps.scan_type.outputs.tag`). Prod registry credentials may come from repo secrets or Vault.
 
+```yaml
+  - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
+    with:
+      source_tag: ${{ steps.scan_type.outputs.tag }}
+      case: "deckhouse"
+      prod_registry: ${{ secrets.DECKHOUSE_REGISTRY_READ_HOST }}
+      prod_registry_user: ${{ steps.secrets.outputs.PROD_READ_REGISTRY_USER }}
+      prod_registry_password: ${{ steps.secrets.outputs.PROD_READ_REGISTRY_PASSWORD }}
+      dev_registry: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_HOST }}
+      dev_registry_user: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_USER }}
+      dev_registry_password: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_PASSWORD }}
+      codeowners_repo_token: ${{ steps.secrets.outputs.CODEOWNERS_REPO_TOKEN }}
+      deckhouse_private_repo: ${{ steps.secrets.outputs.DECKHOUSE_PRIVATE_REPO }}
+      dd_url: ${{ steps.secrets.outputs.DD_URL }}
+      dd_token: ${{ steps.secrets.outputs.DD_TOKEN }}
+      cve_test_repo_git: ${{ steps.secrets.outputs.CVE_TEST_REPO_GIT }}
+      cve_ssh_private_key: ${{ steps.secrets.outputs.CVE_SSH_PRIVATE_KEY }}
+      scan_several_latest_releases: ${{ steps.scan_type.outputs.scan_several_latest_releases }}
+      latest_releases_amount: ${{ steps.scan_type.outputs.latest_releases_amount }}
+      trivy_reports_log_output: "2"
+```
+
+Full workflow examples: [.examples/cve_scan.yml](../.examples/cve_scan.yml); real usage: [csi-ceph](https://github.com/deckhouse/csi-ceph/blob/main/.github/workflows/trivy_image_check.yaml), [deckhouse cve-pr](https://github.com/deckhouse/deckhouse/blob/main/.github/workflows/cve-pr.yml), [deckhouse cve-weekly](https://github.com/deckhouse/deckhouse/blob/main/.github/workflows/cve-weekly.yml).

@@ -1,3 +1,9 @@
+# Example CVE/License scan workflow for a repo using deckhouse/modules-actions/cve_scan.
+# For External Modules (e.g. csi-ceph): use case "External Modules" and external_module_name.
+# For Deckhouse core: use case "deckhouse" and set source_tag from your workflow (e.g. steps.scan_type.outputs.tag).
+# In production, secrets are often provided via hashicorp/vault-action → steps.secrets.outputs.*
+# See: .docs/cve_scan.md and real usage in csi-ceph, deckhouse (cve-pr.yml, cve-weekly.yml).
+
 name: CVE Scan
 
 on:
@@ -10,72 +16,81 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      source_tag:
-        description: "release version in semver minor format (example: 1.68) or specified tag from dev registry"
+      release_branch:
+        description: "Optional. Minor version to scan (e.g. 1.68) or leave empty for default branch"
         required: false
-      scan_several_lastest_releases:
-        description: 'Optional. Whether to scan last several releases or not. true/false. For scheduled pipelines it is always true. Default is: false.'
+      scan_several_latest_releases:
+        description: 'Optional. Scan several latest releases. true/false. Default: false.'
         required: false
       latest_releases_amount:
-        description: 'Optional. Number of latest releases to scan. Default is: 3'
+        description: 'Optional. Number of latest releases to scan. Default: 3'
+        required: false
+      release_in_dev:
+        description: 'If true, release tag is taken from dev registry. Default: false'
         required: false
       trivy_reports_log_output:
-        description: 'Optional. Output Trivy reports to the CI/CD log. 0 - do not output, 1 - CVE/FS only, 2 - CVE + License. Default: 1'
+        description: 'Optional. 0=off, 1=CVE only, 2=CVE+License. Default: 1'
         required: false
       external_module_name:
-        description: 'The name of the module whose tag will be scanned'
+        description: 'For External Modules: module name whose tag will be scanned'
         required: false
 
 jobs:
   cve_scan_on_pr:
     if: github.event_name == 'pull_request'
     name: CVE scan for PR
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, regular]
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: deckhouse/modules-actions/cve_scan@main
+      - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
         with:
-          case: "deckhouse"
-          source_tag: "${{ github.event.inputs.source_tag }}"
-          trivy_reports_log_output: "${{ github.event.inputs.trivy_reports_log_output }}"
-          scan_several_lastest_releases: "${{ github.event.inputs.scan_several_lastest_releases }}"
-          latest_releases_amount: "${{ github.event.inputs.latest_releases_amount }}"
-          prod_registry: "registry.deckhouse.io"
-          prod_registry_user: "${{ secrets.DECKHOUSE_REGISTRY_READ_USER }}"
-          prod_registry_password: "${{ secrets.DECKHOUSE_REGISTRY_READ_PASSWORD }}"
-          dev_registry: "dev-registry.deckhouse.io"
-          dev_registry_user: "${{ secrets.DECKHOUSE_DEV_REGISTRY_USER}}"
-          dev_registry_password: "${{ secrets.DECKHOUSE_DEV_REGISTRY_PASSWORD }}"
-          codeowners_repo_token: "${{ secrets.CODEOWNERS_REPO_TOKEN }}"
-          deckhouse_private_repo: "${{ secrets.DECKHOUSE_PRIVATE_REPO }}"
-          dd_url: "${{ secrets.DD_URL }}"
-          dd_token: "${{ secrets.DD_TOKEN }}"
-          cve_test_repo_git: "${{ secrets.CVE_TEST_REPO_GIT }}"
-          cve_ssh_private_key: "${{ secrets.CVE_SSH_PRIVATE_KEY }}"
+          source_tag: 'pr${{ github.event.number }}'
+          case: "External Modules"
+          external_module_name: ${{ vars.MODULE_NAME }}
+          dd_url: ${{ secrets.DEFECTDOJO_URL }}
+          dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
+          prod_registry: ${{ secrets.PROD_READ_REGISTRY }}
+          prod_registry_user: ${{ secrets.PROD_READ_REGISTRY_USER }}
+          prod_registry_password: ${{ secrets.PROD_READ_REGISTRY_PASSWORD }}
+          dev_registry: ${{ secrets.DECKHOUSE_DEV_REGISTRY_HOST }}
+          dev_registry_user: ${{ secrets.DECKHOUSE_DEV_REGISTRY_USER }}
+          dev_registry_password: ${{ secrets.DECKHOUSE_DEV_REGISTRY_PASSWORD }}
+          codeowners_repo_token: ${{ secrets.CODEOWNERS_REPO_TOKEN }}
+          deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
+          cve_test_repo_git: ${{ secrets.CVE_TEST_REPO_GIT }}
+          cve_ssh_private_key: ${{ secrets.CVE_TEST_SSH_PRIVATE_KEY }}
+          trivy_reports_log_output: ${{ github.event.inputs.trivy_reports_log_output || '1' }}
+
   cve_scan:
     if: github.event_name != 'pull_request'
     name: Regular CVE scan
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, regular]
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: deckhouse/modules-actions/cve_scan@main
+      - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
         with:
+          source_tag: ${{ github.event.inputs.release_branch || github.event.repository.default_branch }}
           case: "External Modules"
-          external_module_name: "${{ github.event.inputs.external_module_name }}"
-          source_tag: "${{ github.event.inputs.source_tag }}"
-          release_in_dev: "${{ github.event.inputs.release_in_dev }}"
-          trivy_reports_log_output: "${{ github.event.inputs.trivy_reports_log_output }}"
-          scan_several_lastest_releases: "${{ github.event.inputs.scan_several_lastest_releases }}"
-          latest_releases_amount: "${{ github.event.inputs.latest_releases_amount }}"
-          prod_registry: "registry.deckhouse.io"
-          prod_registry_user: "${{ secrets.DECKHOUSE_REGISTRY_READ_USER }}"
-          prod_registry_password: "${{ secrets.DECKHOUSE_REGISTRY_READ_PASSWORD }}"
-          dev_registry: "dev-registry.deckhouse.io"
-          dev_registry_user: "${{ secrets.DECKHOUSE_DEV_REGISTRY_USER}}"
-          dev_registry_password: "${{ secrets.DECKHOUSE_DEV_REGISTRY_PASSWORD }}"
-          codeowners_repo_token: "${{ secrets.CODEOWNERS_REPO_TOKEN }}"
-          deckhouse_private_repo: "${{ secrets.DECKHOUSE_PRIVATE_REPO }}"
-          dd_url: "${{ secrets.DD_URL }}"
-          dd_token: "${{ secrets.DD_TOKEN }}"
-          cve_test_repo_git: "${{ secrets.CVE_TEST_REPO_GIT }}"
-          cve_ssh_private_key: "${{ secrets.CVE_SSH_PRIVATE_KEY }}"
+          external_module_name: ${{ vars.MODULE_NAME }}
+          dd_url: ${{ secrets.DEFECTDOJO_URL }}
+          dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
+          prod_registry: ${{ secrets.PROD_READ_REGISTRY }}
+          prod_registry_user: ${{ secrets.PROD_READ_REGISTRY_USER }}
+          prod_registry_password: ${{ secrets.PROD_READ_REGISTRY_PASSWORD }}
+          dev_registry: ${{ secrets.DECKHOUSE_DEV_REGISTRY_HOST }}
+          dev_registry_user: ${{ secrets.DECKHOUSE_DEV_REGISTRY_USER }}
+          dev_registry_password: ${{ secrets.DECKHOUSE_DEV_REGISTRY_PASSWORD }}
+          codeowners_repo_token: ${{ secrets.CODEOWNERS_REPO_TOKEN }}
+          deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
+          cve_test_repo_git: ${{ secrets.CVE_TEST_REPO_GIT }}
+          cve_ssh_private_key: ${{ secrets.CVE_TEST_SSH_PRIVATE_KEY }}
+          scan_several_latest_releases: ${{ github.event.inputs.scan_several_latest_releases || 'True' }}
+          latest_releases_amount: ${{ github.event.inputs.latest_releases_amount || '3' }}
+          release_in_dev: ${{ github.event.inputs.release_in_dev || 'False' }}
+          trivy_reports_log_output: ${{ github.event.inputs.trivy_reports_log_output || '1' }}
