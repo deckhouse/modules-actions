@@ -109,7 +109,7 @@ Secrets are often provided via BOB (`hashicorp/vault-action`); use `steps.secret
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      # Optional: split repo name, import secrets from Vault (see your repo’s pattern)
+      # Optional: split repo name, import secrets from BOB
       - uses: deckhouse/modules-actions/cve_scan@main
         with:
           source_tag: 'pr${{ github.event.number }}'
@@ -139,7 +139,7 @@ Secrets are often provided via BOB (`hashicorp/vault-action`); use `steps.secret
       id-token: write
     steps:
       - uses: actions/checkout@v4
-      # Optional: import secrets from Vault
+      # Optional: import secrets from BOB
       - uses: deckhouse/modules-actions/cve_scan@main
         with:
           source_tag: ${{ github.event.inputs.release_branch || github.event.repository.default_branch }}
