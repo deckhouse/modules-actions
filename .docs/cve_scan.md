@@ -167,7 +167,7 @@ Secrets are often provided via BOB (`hashicorp/vault-action`); use `steps.secret
 For the main Deckhouse repo, *case* is `deckhouse` and *source_tag* is set from workflow (e.g. from a previous step like `steps.scan_type.outputs.tag`). Prod registry credentials may come from repo secrets or BOB.
 
 ```yaml
-  - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
+  - uses: deckhouse/modules-actions/cve_scan@main
     with:
       source_tag: ${{ steps.scan_type.outputs.tag }}
       case: "deckhouse"
