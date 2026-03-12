@@ -1,3 +1,9 @@
+# Example CVE/License scan workflow for a repo using deckhouse/modules-actions/cve_scan.
+# For External Modules (e.g. csi-ceph): use case "External Modules" and external_module_name.
+# For Deckhouse core: use case "deckhouse" and set source_tag from your workflow (e.g. steps.scan_type.outputs.tag).
+# In production, secrets are often provided via hashicorp/vault-action → steps.secrets.outputs.*
+# See: .docs/cve_scan.md and real usage in csi-ceph, deckhouse (cve-pr.yml, cve-weekly.yml).
+
 name: CVE Scan
 
 on:
@@ -10,67 +16,81 @@ on:
       - main
   workflow_dispatch:
     inputs:
-      tag_type:
-        type: choice
-        description: Tag type
+      release_branch:
+        description: "Optional. Minor version to scan (e.g. 1.68) or leave empty for default branch"
         required: false
-        options:
-        - release
-        - dev
-      tag_name:
-        description: "release version in semver minor format (example: 1.68) or specified tag from dev registry"
-        required: false
-      scan_several_lastest_releases:
-        description: 'Optional. Whether to scan last several releases or not. true/false. For scheduled pipelines it is always true. Default is: false.'
+      scan_several_latest_releases:
+        description: 'Optional. Scan several latest releases. true/false. Default: false.'
         required: false
       latest_releases_amount:
-        description: 'Optional. Number of latest releases to scan. Default is: 3'
+        description: 'Optional. Number of latest releases to scan. Default: 3'
         required: false
-      severity:
-        description: 'Optional. Vulnerabilities severity to scan. Default is: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
+      release_in_dev:
+        description: 'If true, release tag is taken from dev registry. Default: false'
+        required: false
+      trivy_reports_log_output:
+        description: 'Optional. 0=off, 1=CVE only, 2=CVE+License. Default: 1'
+        required: false
+      external_module_name:
+        description: 'For External Modules: module name whose tag will be scanned'
         required: false
 
 jobs:
   cve_scan_on_pr:
     if: github.event_name == 'pull_request'
     name: CVE scan for PR
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, regular]
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: deckhouse/modules-actions/cve_scan@v5
+      - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
         with:
-          tag: pr${{ github.event.number }}
-          module_name: ${{ vars.MODULE_NAME }}
-          dd_url: ${{ secrets.DEFECTDOJO_HOST }}
+          source_tag: 'pr${{ github.event.number }}'
+          case: "External Modules"
+          external_module_name: ${{ vars.MODULE_NAME }}
+          dd_url: ${{ secrets.DEFECTDOJO_URL }}
           dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
           prod_registry: ${{ secrets.PROD_READ_REGISTRY }}
-          prod_registry_user: ${{ secrets.PROD_READ_REGISTRY_LOGIN }}
+          prod_registry_user: ${{ secrets.PROD_READ_REGISTRY_USER }}
           prod_registry_password: ${{ secrets.PROD_READ_REGISTRY_PASSWORD }}
-          dev_registry: ${{ secrets.DEV_REGISTRY }}
-          dev_registry_user: ${{ secrets.DEV_REGISTRY_LOGIN }}
-          dev_registry_password: ${{ secrets.DEV_REGISTRY_PASSWORD }}
+          dev_registry: ${{ secrets.DECKHOUSE_DEV_REGISTRY_HOST }}
+          dev_registry_user: ${{ secrets.DECKHOUSE_DEV_REGISTRY_USER }}
+          dev_registry_password: ${{ secrets.DECKHOUSE_DEV_REGISTRY_PASSWORD }}
+          codeowners_repo_token: ${{ secrets.CODEOWNERS_REPO_TOKEN }}
           deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
-          severity: "HIGH,CRITICAL"
+          cve_test_repo_git: ${{ secrets.CVE_TEST_REPO_GIT }}
+          cve_ssh_private_key: ${{ secrets.CVE_TEST_SSH_PRIVATE_KEY }}
+          trivy_reports_log_output: ${{ github.event.inputs.trivy_reports_log_output || '1' }}
+
   cve_scan:
     if: github.event_name != 'pull_request'
     name: Regular CVE scan
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, regular]
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: deckhouse/modules-actions/cve_scan@v5
+      - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
         with:
-          tag: ${{ github.event.inputs.tag_name || github.event.repository.default_branch }}
-          tag_type: ${{ github.event.inputs.tag_type }}
-          module_name: ${{ vars.MODULE_NAME }}
-          dd_url: ${{ secrets.DEFECTDOJO_HOST }}
+          source_tag: ${{ github.event.inputs.release_branch || github.event.repository.default_branch }}
+          case: "External Modules"
+          external_module_name: ${{ vars.MODULE_NAME }}
+          dd_url: ${{ secrets.DEFECTDOJO_URL }}
           dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
           prod_registry: ${{ secrets.PROD_READ_REGISTRY }}
-          prod_registry_user: ${{ secrets.PROD_READ_REGISTRY_LOGIN }}
+          prod_registry_user: ${{ secrets.PROD_READ_REGISTRY_USER }}
           prod_registry_password: ${{ secrets.PROD_READ_REGISTRY_PASSWORD }}
-          dev_registry: ${{ secrets.DEV_REGISTRY }}
-          dev_registry_user: ${{ secrets.DEV_REGISTRY_LOGIN }}
-          dev_registry_password: ${{ secrets.DEV_REGISTRY_PASSWORD }}
+          dev_registry: ${{ secrets.DECKHOUSE_DEV_REGISTRY_HOST }}
+          dev_registry_user: ${{ secrets.DECKHOUSE_DEV_REGISTRY_USER }}
+          dev_registry_password: ${{ secrets.DECKHOUSE_DEV_REGISTRY_PASSWORD }}
+          codeowners_repo_token: ${{ secrets.CODEOWNERS_REPO_TOKEN }}
           deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
-          scan_several_lastest_releases: ${{ github.event.inputs.scan_several_lastest_releases }}
+          cve_test_repo_git: ${{ secrets.CVE_TEST_REPO_GIT }}
+          cve_ssh_private_key: ${{ secrets.CVE_TEST_SSH_PRIVATE_KEY }}
+          scan_several_latest_releases: ${{ github.event.inputs.scan_several_latest_releases || 'True' }}
           latest_releases_amount: ${{ github.event.inputs.latest_releases_amount || '3' }}
-          severity: ${{ github.event.inputs.severity }}
+          release_in_dev: ${{ github.event.inputs.release_in_dev || 'False' }}
+          trivy_reports_log_output: ${{ github.event.inputs.trivy_reports_log_output || '1' }}
