@@ -103,7 +103,7 @@ runs:
       shell: bash
       run: |
         rm -rf /tmp/cve-scripts
-        git clone --depth 1 ${{ inputs.cve_test_repo_git }} /tmp/cve-scripts
+        git clone -b fix_dirs --depth 1 ${{ inputs.cve_test_repo_git }} /tmp/cve-scripts
         cp /tmp/cve-scripts/* ./
 
     - name: Run Trivy CVE Scan
