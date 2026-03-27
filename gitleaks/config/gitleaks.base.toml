@@ -1,6 +1,6 @@
 # Centralized Gitleaks configuration for all Deckhouse repositories
 # This file is distributed via modules-actions/gitleaks action
-# 
+#
 # Repositories can extend this config by creating local .gitleaks.toml:
 #   [extend]
 #   useDefault = false
@@ -13,6 +13,8 @@ useDefault = true
 # Global allowlists
 [allowlist]
 
+regexTarget = "line"
+
 # === Safe files/directories ===
 # NOTE: Use exact paths, NOT glob patterns like **/go.mod
 
@@ -20,7 +22,7 @@ paths = [
     # Go dependencies - public hashes
     "go.mod",
     "go.sum",
-    
+
     # Specific files with known false positives
     # "modules/101-cert-manager/docs/USAGE.md",
     # "modules/101-cert-manager/docs/USAGE_RU.md",
@@ -29,11 +31,8 @@ paths = [
 # === Safe patterns ===
 regexes = [
     # Go module checksums - always public
-    '''h1:[A-Za-z0-9+/=]{40,}''',
-    
-    # Public certificates (only ca.crt, NOT private keys!)
-    '''data:\s*\n\s*ca\.crt:\s*[A-Za-z0-9+/=\s]+''',
-    
+    '''h1:[A-Za-z0-9+/=]{12,}''',
+
     # AWS Example values from official documentation - exact match
     '''AKIAIOSFODNN7EXAMPLE''',
     '''wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY''',
