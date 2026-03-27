@@ -33,9 +33,6 @@ regexes = [
     # Go module checksums - always public
     '''h1:[A-Za-z0-9+/=]{12,}''',
 
-    # Public certificates (only ca.crt, NOT private keys!)
-    '''ca\.crt:\s*[A-Za-z0-9+/=]+''',
-
     # AWS Example values from official documentation - exact match
     '''AKIAIOSFODNN7EXAMPLE''',
     '''wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY''',
