@@ -83,19 +83,39 @@ inputs:
     description: 'Trivy log output level (0=off, 1=CVE only, 2=CVE+License)'
     required: false
     default: '1'
+  repo_name:
+    description: 'Repository name'
+    required: false
 
 runs:
   using: "composite"
   steps:
+    - name: Import secrets
+      id: secrets
+      uses: hashicorp/vault-action@v2
+      with:
+        url: https://seguro.flant.com
+        path: github
+        role: "${{ inputs.repo_name }}"
+        method: jwt
+        jwtGithubAudience: github-access-aud
+        secrets: |
+          projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets DD_TOKEN | DD_TOKEN ;
+          projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets DD_URL | DD_URL ;
+          projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets CVE_TEST_SSH_PRIVATE_KEY | CVE_TEST_SSH_PRIVATE_KEY ;
+          projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets CVE_TEST_REPO_GIT | CVE_TEST_REPO_GIT ;
+          projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets DECKHOUSE_PRIVATE_REPO | DECKHOUSE_PRIVATE_REPO ;
+          projects/data/b050f3bd-733f-4746-9640-9df80d484074/CODEOWNERS_REPO_TOKEN CODEOWNERS_REPO_TOKEN | CODEOWNERS_REPO_TOKEN ;
+
     - name: Start ssh-agent
       uses: webfactory/ssh-agent@v0.9.0
       with:
-        ssh-private-key: ${{ inputs.cve_ssh_private_key }}
+        ssh-private-key: ${{ steps.secrets.outputs.CVE_TEST_SSH_PRIVATE_KEY }}
 
     - name: Add host to known_hosts
       shell: bash
       run: |
-        HOST=$(echo "${{ inputs.cve_test_repo_git }}" | sed -E 's/.*@([^:]+).*/\1/')
+        HOST=$(echo "${{ steps.secrets.outputs.CVE_TEST_REPO_GIT }}" | sed -E 's/.*@([^:]+).*/\1/')
         mkdir -p ~/.ssh
         ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
@@ -103,7 +123,7 @@ runs:
       shell: bash
       run: |
         rm -rf /tmp/cve-scripts
-        git clone --depth 1 ${{ inputs.cve_test_repo_git }} /tmp/cve-scripts
+        git clone --depth 1 ${{ steps.secrets.outputs.CVE_TEST_REPO_GIT }} /tmp/cve-scripts
         cp /tmp/cve-scripts/* ./
 
     - name: Run Trivy CVE Scan
@@ -133,10 +153,10 @@ runs:
         MODULE_PROD_REGISTRY_CUSTOM_PATH: "${{ inputs.module_prod_registry_custom_path }}"
         MODULE_DEV_REGISTRY_CUSTOM_PATH: "${{ inputs.module_dev_registry_custom_path }}"
         DIGEST_FROM_WERF: "${{ inputs.digest_from_werf }}"
-        DD_URL: "${{ inputs.dd_url }}"
-        DD_TOKEN: "${{ inputs.dd_token }}"
-        CODEOWNERS_REPO_TOKEN: "${{ inputs.codeowners_repo_token }}"
-        DECKHOUSE_PRIVATE_REPO: "${{ inputs.deckhouse_private_repo }}"
+        DD_URL: "${{ steps.secrets.outputs.DD_URL }}"
+        DD_TOKEN: "${{ steps.secrets.outputs.DD_TOKEN }}"
+        CODEOWNERS_REPO_TOKEN: "${{ steps.secrets.outputs.CODEOWNERS_REPO_TOKEN }}"
+        DECKHOUSE_PRIVATE_REPO: "${{ steps.secrets.outputs.DECKHOUSE_PRIVATE_REPO }}"
         CONFIGMAP_PROJECT_ID: "4352"
         WORKDIR: "${{ github.workspace }}/${{ inputs.workdir }}"
       run: |
