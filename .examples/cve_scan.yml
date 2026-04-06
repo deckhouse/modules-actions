@@ -44,25 +44,25 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - name: Split repository name
+        id: split
+        env:
+          REPO: ${{ github.event.repository.name }}
+        run: echo "repo_name=${REPO##*/}" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
       - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
         with:
           source_tag: 'pr${{ github.event.number }}'
           case: "External Modules"
           external_module_name: ${{ vars.MODULE_NAME }}
-          dd_url: ${{ secrets.DEFECTDOJO_URL }}
-          dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
           prod_registry: ${{ secrets.PROD_READ_REGISTRY }}
           prod_registry_user: ${{ secrets.PROD_READ_REGISTRY_USER }}
           prod_registry_password: ${{ secrets.PROD_READ_REGISTRY_PASSWORD }}
           dev_registry: ${{ secrets.DECKHOUSE_DEV_REGISTRY_HOST }}
           dev_registry_user: ${{ secrets.DECKHOUSE_DEV_REGISTRY_USER }}
           dev_registry_password: ${{ secrets.DECKHOUSE_DEV_REGISTRY_PASSWORD }}
-          codeowners_repo_token: ${{ secrets.CODEOWNERS_REPO_TOKEN }}
-          deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
-          cve_test_repo_git: ${{ secrets.CVE_TEST_REPO_GIT }}
-          cve_ssh_private_key: ${{ secrets.CVE_TEST_SSH_PRIVATE_KEY }}
           trivy_reports_log_output: ${{ github.event.inputs.trivy_reports_log_output || '1' }}
+          repo_name: ${{ steps.split.outputs.repo_name }}
 
   cve_scan:
     if: github.event_name != 'pull_request'
@@ -72,25 +72,25 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - name: Split repository name
+        id: split
+        env:
+          REPO: ${{ github.event.repository.name }}
+        run: echo "repo_name=${REPO##*/}" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
       - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
         with:
           source_tag: ${{ github.event.inputs.release_branch || github.event.repository.default_branch }}
           case: "External Modules"
           external_module_name: ${{ vars.MODULE_NAME }}
-          dd_url: ${{ secrets.DEFECTDOJO_URL }}
-          dd_token: ${{ secrets.DEFECTDOJO_API_TOKEN }}
           prod_registry: ${{ secrets.PROD_READ_REGISTRY }}
           prod_registry_user: ${{ secrets.PROD_READ_REGISTRY_USER }}
           prod_registry_password: ${{ secrets.PROD_READ_REGISTRY_PASSWORD }}
           dev_registry: ${{ secrets.DECKHOUSE_DEV_REGISTRY_HOST }}
           dev_registry_user: ${{ secrets.DECKHOUSE_DEV_REGISTRY_USER }}
           dev_registry_password: ${{ secrets.DECKHOUSE_DEV_REGISTRY_PASSWORD }}
-          codeowners_repo_token: ${{ secrets.CODEOWNERS_REPO_TOKEN }}
-          deckhouse_private_repo: ${{ secrets.DECKHOUSE_PRIVATE_REPO }}
-          cve_test_repo_git: ${{ secrets.CVE_TEST_REPO_GIT }}
-          cve_ssh_private_key: ${{ secrets.CVE_TEST_SSH_PRIVATE_KEY }}
           scan_several_latest_releases: ${{ github.event.inputs.scan_several_latest_releases || 'True' }}
           latest_releases_amount: ${{ github.event.inputs.latest_releases_amount || '3' }}
           release_in_dev: ${{ github.event.inputs.release_in_dev || 'False' }}
           trivy_reports_log_output: ${{ github.event.inputs.trivy_reports_log_output || '1' }}
+          repo_name: ${{ steps.split.outputs.repo_name }}
