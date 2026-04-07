@@ -48,7 +48,7 @@ jobs:
         id: split
         env:
           REPO: ${{ github.event.repository.name }}
-        run: echo "repo_name=${REPO##*/}" >> $GITHUB_OUTPUT
+        run: echo "role_name=${REPO##*/}" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
       - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
         with:
@@ -62,7 +62,7 @@ jobs:
           dev_registry_user: ${{ secrets.DECKHOUSE_DEV_REGISTRY_USER }}
           dev_registry_password: ${{ secrets.DECKHOUSE_DEV_REGISTRY_PASSWORD }}
           trivy_reports_log_output: ${{ github.event.inputs.trivy_reports_log_output || '1' }}
-          repo_name: ${{ steps.split.outputs.repo_name }}
+          role_name: ${{ steps.split.outputs.role_name }}
 
   cve_scan:
     if: github.event_name != 'pull_request'
@@ -76,7 +76,7 @@ jobs:
         id: split
         env:
           REPO: ${{ github.event.repository.name }}
-        run: echo "repo_name=${REPO##*/}" >> $GITHUB_OUTPUT
+        run: echo "role_name=${REPO##*/}" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
       - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
         with:
@@ -93,4 +93,4 @@ jobs:
           latest_releases_amount: ${{ github.event.inputs.latest_releases_amount || '3' }}
           release_in_dev: ${{ github.event.inputs.release_in_dev || 'False' }}
           trivy_reports_log_output: ${{ github.event.inputs.trivy_reports_log_output || '1' }}
-          repo_name: ${{ steps.split.outputs.repo_name }}
+          role_name: ${{ steps.split.outputs.role_name }}

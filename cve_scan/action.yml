@@ -83,7 +83,7 @@ inputs:
     description: 'Trivy log output level (0=off, 1=CVE only, 2=CVE+License)'
     required: false
     default: '1'
-  repo_name:
+  role_name:
     description: 'Repository name'
     required: false
 
@@ -96,7 +96,7 @@ runs:
       with:
         url: https://seguro.flant.com
         path: github
-        role: "${{ inputs.repo_name }}"
+        role: "${{ inputs.role_name }}"
         method: jwt
         jwtGithubAudience: github-access-aud
         secrets: |
