@@ -43,7 +43,7 @@ deckhouse/modules-actions/cve_scan@main
 | `dev_registry` | Dev registry host (branch/PR images) |
 | `dev_registry_user` | Dev registry username |
 | `dev_registry_password` | Dev registry password |
-| `repo_name` | Optional. Passed to Vault as the JWT role name (repository identifier for auth) |
+| `role_name` | Optional. Passed to Vault as the JWT role name (repository identifier for auth) |
 
 ### Sensitive inputs (mask in logs)
 Registry credentials and any secrets you pass explicitly. DefectDojo, CODEOWNERS, Deckhouse private repo URL, and cve-scan SSH material are pulled from BOB inside the action, so you typically do not duplicate them as separate workflow secrets for this action.
