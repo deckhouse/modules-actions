@@ -23,7 +23,7 @@ inputs:
   github_token:
     description: 'Token for pushing tags (use RELEASE_PAT secret with PAT to trigger workflows via push)'
     required: false
-    default: ${{ secrets.GITHUB_TOKEN }}
+    default: ${{ github.token }}
 
 outputs:
   version:
@@ -59,7 +59,7 @@ runs:
     - name: Merge PR
       shell: bash
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ github.token }}
       run: |
         gh pr merge ${{ inputs.pr_number }} --squash --delete-branch
 
@@ -136,7 +136,7 @@ runs:
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+        token: ${{ github.token }}
         tag_name: ${{ steps.extract_version.outputs.version }}
         name: ${{ steps.extract_version.outputs.version }}
         body: |
