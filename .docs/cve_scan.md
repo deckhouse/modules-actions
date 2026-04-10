@@ -82,6 +82,15 @@ on:
         required: false
 ```
 
+### Example: split role_name from repository name
+```yaml
+  - name: Split repository name
+    id: split
+    env:
+      REPO: ${{ github.event.repository.name }}
+    run: echo "role_name=${REPO##*/}" >> $GITHUB_OUTPUT
+```
+
 ### Example: External Modules (e.g. csi-ceph)
 Use your own Vault or repo secrets for **registry** credentials (and anything else outside the built-in list). DefectDojo, CODEOWNERS, Deckhouse private repo, and cve-scan clone credentials are imported by the action itself; the `dd_*`, `codeowners_*`, `deckhouse_private_repo`, and `cve_*` inputs in the snippet below can remain placeholders if your action version still requires them, or follow your organization’s convention.
 
@@ -109,6 +118,7 @@ Use your own Vault or repo secrets for **registry** credentials (and anything el
           dev_registry_user: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_USER }}
           dev_registry_password: ${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_PASSWORD }}
           trivy_reports_log_output: "1"
+          role_name: ${{ steps.split.outputs.role_name }}
 
   cve_scan:
     if: github.event_name != 'pull_request'
@@ -135,6 +145,7 @@ Use your own Vault or repo secrets for **registry** credentials (and anything el
           latest_releases_amount: ${{ github.event.inputs.latest_releases_amount || '3' }}
           release_in_dev: ${{ github.event.inputs.release_in_dev || 'False' }}
           trivy_reports_log_output: "1"
+          role_name: ${{ steps.split.outputs.role_name }}
 ```
 
 ### Example: case: deckhouse
@@ -154,6 +165,7 @@ For the main Deckhouse repo, *case* is `deckhouse` and *source_tag* is set from 
       scan_several_latest_releases: ${{ steps.scan_type.outputs.scan_several_latest_releases }}
       latest_releases_amount: ${{ steps.scan_type.outputs.latest_releases_amount }}
       trivy_reports_log_output: "2"
+      role_name: ${{ steps.split.outputs.role_name }}
 ```
 
 Full workflow examples: [.examples/cve_scan.yml](../.examples/cve_scan.yml); real usage: [csi-ceph](https://github.com/deckhouse/csi-ceph/blob/main/.github/workflows/trivy_image_check.yaml), [deckhouse cve-pr](https://github.com/deckhouse/deckhouse/blob/main/.github/workflows/cve-pr.yml), [deckhouse cve-weekly](https://github.com/deckhouse/deckhouse/blob/main/.github/workflows/cve-weekly.yml).
