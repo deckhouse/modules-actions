@@ -209,28 +209,49 @@ runs:
         print(f"Translated {source_file} ({source_lang}) to {target_file} ({target_lang})")
         EOF
 
-    - name: Create Pull Request
+    - name: Commit and push translation
       if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
-      uses: peter-evans/create-pull-request@v7
-      with:
-        token: ${{ inputs.github_token }}
-        commit-message: Translate changelog ${{ steps.find_changelog.outputs.version }} from ${{ inputs.source_lang }} to ${{ inputs.target_lang }}
-        branch: translation/${{ inputs.source_lang }}-to-${{ inputs.target_lang }}/${{ steps.find_changelog.outputs.version }}
-        delete-branch: false
-        title: ${{ steps.find_changelog.outputs.version }}
-        body: |
-          ## Changelog ${{ steps.find_changelog.outputs.version }}
-          
-          This PR contains the ${{ inputs.target_lang == 'ru' && 'Russian' || 'English' }} translation of the ${{ inputs.source_lang == 'ru' && 'Russian' || 'English' }} changelog for version ${{ steps.find_changelog.outputs.version }}.
-          
-          **Source file:** `${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.source_file }}`
-          **Translated file:** `${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.target_file }}`
-          
-          <details>
-          <summary>Changelog content</summary>
-          
-          The translated changelog file has been generated and is ready for review.
-          
-          </details>
-        base: ${{ inputs.base_branch }}
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        CURRENT_BRANCH="$(git symbolic-ref --short HEAD)"
+
+        git config user.name "github-actions[bot]"
+        git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+        git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+
+        git add "${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.target_file }}"
+        git commit -m "Translate changelog ${{ steps.find_changelog.outputs.version }} from ${{ inputs.source_lang }} to ${{ inputs.target_lang }}"
+        git push origin "${CURRENT_BRANCH}"
+
+    - name: Create pull request
+      if: steps.check_changes.outputs.has_changes == 'true' && steps.find_changelog.outcome == 'success'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        GH_REPO: ${{ github.repository }}
+      run: |
+        CURRENT_BRANCH="$(git symbolic-ref --short HEAD)"
+        BASE_BRANCH="${{ inputs.base_branch }}"
+        VERSION="${{ steps.find_changelog.outputs.version }}"
+        TITLE="changelog: ${VERSION} release"
+
+        EXISTING_PR=$(gh pr list --head "${CURRENT_BRANCH}" --base "${BASE_BRANCH}" --state open --json number --jq '.[0].number // empty')
+        if [ -n "${EXISTING_PR}" ]; then
+          echo "PR #${EXISTING_PR} already exists for ${CURRENT_BRANCH} -> ${BASE_BRANCH}, skipping creation"
+        else
+          gh pr create \
+            --head "${CURRENT_BRANCH}" \
+            --base "${BASE_BRANCH}" \
+            --title "${TITLE}" \
+            --body "## Changelog ${VERSION}
+
+        Translated changelog from ${{ inputs.source_lang }} to ${{ inputs.target_lang }}.
+
+        **Source file:** \`${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.source_file }}\`
+        **Translated file:** \`${{ inputs.changelog_path }}/${{ steps.find_changelog.outputs.target_file }}\`"
+          echo "PR created for ${CURRENT_BRANCH} -> ${BASE_BRANCH}"
+        fi
 
