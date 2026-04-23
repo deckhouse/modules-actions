@@ -17,19 +17,26 @@ runs:
       run: |
         basedir=$(pwd)
         failed='false'
-        for i in $(find images -type f -name '*_test.go');do
-          dir=$(echo $i | sed 's/[a-z_A-Z0-9-]*_test.go$//')
-          cd $basedir/$dir
+        # Iterate over Go modules (one go.mod per module) instead of every
+        # *_test.go file. The previous implementation ran `go test` once per
+        # test file in the enclosing directory without specifying a package,
+        # producing N*M duplicate runs for a package with N test files and M
+        # build tags. Iterating over go.mod files runs each module exactly
+        # once per build tag, and `./...` covers every package inside.
+        for gomod in $(find images -type f -name 'go.mod'); do
+          dir=$(dirname "$gomod")
+          cd "$basedir/$dir" || continue
           # check all editions
-          for edition in $GO_BUILD_TAGS ;do
+          for edition in $GO_BUILD_TAGS; do
             echo "Running tests in $dir (edition: $edition)"
-            go test -v -tags $edition
+            go test -v -tags "$edition" ./...
             if [ $? -ne 0 ]; then
               echo "Tests failed in $dir (edition: $edition)"
               failed='true'
             fi
           done
+          cd "$basedir" || exit 1
         done
-        if [ $failed == 'true' ]; then
+        if [ "$failed" = 'true' ]; then
           exit 1
         fi
