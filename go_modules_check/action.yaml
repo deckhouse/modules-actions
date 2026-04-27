@@ -28,6 +28,10 @@ runs:
           exit 1
         fi
 
+        # Allow loading module graph when github.com/deckhouse/deckhouse exposes in-repo
+        # submodule paths with synthetic pseudo-versions (Go 1.25+).
+        export GOFLAGS=-e
+
         temp_dir=$(mktemp -d)
         touch "$temp_dir/incorrect_alert"
 
@@ -59,6 +63,21 @@ runs:
                 fi
               else
                 echo "  Checking module tag $module_name"
+                # Synthetic pseudo-version used inside github.com/deckhouse/deckhouse monorepo
+                if [[ "$module_version" == "v0.0.0-00010101000000-000000000000" ]]; then
+                  echo "  Skipping placeholder module version for $module_name"
+                  continue
+                fi
+                # Transitive paths under github.com/deckhouse/deckhouse/ are not separate modules for api/* checks
+                if [[ "$module_name" == github.com/deckhouse/deckhouse/* ]]; then
+                  echo "  Skipping transitive path under github.com/deckhouse/deckhouse: $module_name"
+                  continue
+                fi
+                # Root deckhouse pin often uses vX.Y.Z-0.<time>-<hash>; only v0.0.0-<14digits>-<12hex> matches this script's api/* heuristic
+                if [[ "$module_name" == "github.com/deckhouse/deckhouse" ]] && [[ ! "$module_version" =~ ^v0\.0\.0-[0-9]{14}-[a-f0-9]{12}$ ]]; then
+                  echo "  Skipping deckhouse main module version (pseudo format not covered by api/* check): $module_version"
+                  continue
+                fi
                 repository=$(echo "$line" | awk '{print $1}' | awk -F'/' '{ print "https://"$1"/"$2"/"$3".git" }')
                 pseudo_tag=$(echo "$line" | awk '{print $2}')
                 if [[ $pseudo_tag =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
