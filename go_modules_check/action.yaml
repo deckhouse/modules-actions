@@ -17,9 +17,6 @@ runs:
       uses: actions/setup-go@v5
       with:
         go-version: ${{ inputs.go_version }}
-        cache: true
-        cache-dependency-path: |
-          **/go.sum
 
     - name: Run Go modules version check
       shell: bash
