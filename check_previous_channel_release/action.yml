@@ -14,7 +14,12 @@ inputs:
     description: 'Name of the release channel. Must be one of alpha, beta, early-access, stable, rock-solid'
     required: true
   registry:
-    description: 'Registry URL used to read the previous release channel image'
+    description: |
+      Registry URL used to read the previous release channel image. The domain
+      portion of `module_source` is replaced with this value before pulling, so
+      reads can go through a different registry than the one used for pushing
+      (e.g. pass `vars.PROD_REGISTRY_READ` while `module_source` is built from
+      `vars.PROD_REGISTRY`).
     required: true
   registry_login:
     description: 'Registry login used to read the previous release channel image (read-only is enough)'
@@ -67,12 +72,18 @@ runs:
         echo "Checking previous channel ${previous_channel}"
         crane auth login -u "${REGISTRY_LOGIN}" -p "${REGISTRY_PASSWORD}" "${REGISTRY}"
 
+        # Swap the domain portion of module_source with the read registry, so
+        # the previous-channel image is pulled from `${REGISTRY}` rather than
+        # the (possibly write-only) registry baked into `module_source`.
+        read_module_source="${REGISTRY}/${MODULE_SOURCE#*/}"
+        echo "Reading previous channel image from ${read_module_source}/${MODULE_NAME}/release:${previous_channel}"
+
         # version.json inside the release image can be either single-line
         # ({"version":"v0.1.14"}) or pretty-printed across multiple lines
         # ({\n  "version": "v0.1.0"\n}). Use a multiline-aware PCRE grep
         # (-P -z) so both layouts are matched.
         previous_channel_version=$(
-          crane export "${MODULE_SOURCE}/${MODULE_NAME}/release:${previous_channel}" - \
+          crane export "${read_module_source}/${MODULE_NAME}/release:${previous_channel}" - \
             | grep -aoPz '\{\s*"version"\s*:\s*"[^"]+"\s*\}' \
             | head -z -n 1 \
             | tr -d '\0' \
