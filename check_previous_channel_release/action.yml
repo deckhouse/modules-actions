@@ -1,0 +1,93 @@
+name: 'Check previous channel release'
+description: 'Check that the previous release channel exposes the same module version as the one being deployed'
+inputs:
+  module_source:
+    description: 'Registry repository address for the module, e.g., registry.example.com/deckhouse/ce/modules'
+    required: true
+  module_name:
+    description: 'Name of the module, e.g., my-module'
+    required: true
+  module_tag:
+    description: 'The version of the module to deploy to release channel, e.g., v1.21.1'
+    required: true
+  release_channel:
+    description: 'Name of the release channel. Must be one of alpha, beta, early-access, stable, rock-solid'
+    required: true
+  registry:
+    description: 'Registry URL used to read the previous release channel image'
+    required: true
+  registry_login:
+    description: 'Registry login used to read the previous release channel image (read-only is enough)'
+    required: true
+  registry_password:
+    description: 'Registry password used to read the previous release channel image (read-only is enough)'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Check previous channel release for ${{ inputs.module_name }}
+      shell: bash
+      env:
+        MODULE_SOURCE: ${{ inputs.module_source }}
+        MODULE_NAME: ${{ inputs.module_name }}
+        MODULE_TAG: ${{ inputs.module_tag }}
+        RELEASE_CHANNEL: ${{ inputs.release_channel }}
+        REGISTRY: ${{ inputs.registry }}
+        REGISTRY_LOGIN: ${{ inputs.registry_login }}
+        REGISTRY_PASSWORD: ${{ inputs.registry_password }}
+      run: |
+        set -euo pipefail
+
+        echo "Module ${MODULE_NAME}, source ${MODULE_SOURCE}, channel ${RELEASE_CHANNEL}, version ${MODULE_TAG}"
+
+        case "${RELEASE_CHANNEL}" in
+          alpha)
+            echo "Deploying ${MODULE_TAG} to alpha channel, skipping previous channel check"
+            exit 0
+            ;;
+          beta)
+            previous_channel="alpha"
+            ;;
+          early-access)
+            previous_channel="beta"
+            ;;
+          stable)
+            previous_channel="early-access"
+            ;;
+          rock-solid)
+            previous_channel="stable"
+            ;;
+          *)
+            echo "Unknown channel: ${RELEASE_CHANNEL}"
+            exit 1
+            ;;
+        esac
+
+        echo "Checking previous channel ${previous_channel}"
+        crane auth login -u "${REGISTRY_LOGIN}" -p "${REGISTRY_PASSWORD}" "${REGISTRY}"
+
+        # version.json inside the release image can be either single-line
+        # ({"version":"v0.1.14"}) or pretty-printed across multiple lines
+        # ({\n  "version": "v0.1.0"\n}). Use a multiline-aware PCRE grep
+        # (-P -z) so both layouts are matched.
+        previous_channel_version=$(
+          crane export "${MODULE_SOURCE}/${MODULE_NAME}/release:${previous_channel}" - \
+            | grep -aoPz '\{\s*"version"\s*:\s*"[^"]+"\s*\}' \
+            | head -z -n 1 \
+            | tr -d '\0' \
+            | jq -r .version
+        )
+
+        if [[ -z "${previous_channel_version}" || "${previous_channel_version}" == "null" ]]; then
+          echo "Failed to read version from previous channel ${previous_channel}"
+          exit 1
+        fi
+
+        if [[ "${MODULE_TAG}" == "${previous_channel_version}" ]]; then
+          echo "Previous channel ${previous_channel} version ${previous_channel_version} is equal to desired version ${MODULE_TAG}, processing"
+          exit 0
+        else
+          echo "Previous channel ${previous_channel} version ${previous_channel_version} is not equal to desired version ${MODULE_TAG}, rejecting"
+          exit 1
+        fi
