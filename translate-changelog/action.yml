@@ -181,7 +181,7 @@ runs:
         translator = GoogleTranslator(source=source_lang, target=target_lang)
 
         def translate_value(value):
-            """Рекурсивно переводит значения в структуре данных"""
+            """Рекурсивно переводит строки, ключи и значения в структуре данных"""
             if isinstance(value, str):
                 # Переводим строку
                 try:
@@ -190,8 +190,10 @@ runs:
                     print(f"Warning: Failed to translate '{value[:50]}...': {e}")
                     return value
             elif isinstance(value, dict):
-                # Рекурсивно обрабатываем словарь (ключи остаются без изменений)
-                return {key: translate_value(val) for key, val in value.items()}
+                return {
+                    translate_value(key): translate_value(val)
+                    for key, val in value.items()
+                }
             elif isinstance(value, list):
                 # Рекурсивно обрабатываем список
                 return [translate_value(item) for item in value]
@@ -199,7 +201,7 @@ runs:
                 # Другие типы (числа, bool, None) возвращаем без изменений
                 return value
 
-        # Перевести все значения в структуре
+        # Перевести все ключи и значения в структуре
         translated_data = translate_value(data)
 
         # Сохранить переведенный YAML
