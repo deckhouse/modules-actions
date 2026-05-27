@@ -25,6 +25,12 @@ runs:
       shell: bash
       run: crane version
 
+    - name: Isolate docker config
+      shell: bash
+      run: |
+        mkdir -p $RUNNER_TEMP/.docker
+        echo "DOCKER_CONFIG=$RUNNER_TEMP/.docker" >> $GITHUB_ENV
+
     - name: Login into registry ${{ inputs.registry }}
       shell: bash
       run: werf cr login -u ${{ inputs.registry_login }} -p ${{ inputs.registry_password }} ${{ inputs.registry }}
