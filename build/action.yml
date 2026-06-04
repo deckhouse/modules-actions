@@ -57,6 +57,12 @@ runs:
       shell: bash
       run: |
         edition=$(echo "${{ inputs.source_repo }}" | sed -nE 's|.*/[^/]*deckhouse[^/]*/([^/]+)/modules.*|\1|p')
+        if [ -n "$edition" ]; then
+          echo "Detected edition: "$edition"
+        else
+          echo "No edition has been detected."
+        fi
+
         echo "EDITION=${edition}" > $GITHUB_ENV
 
     - name: Set secondary repo if input exists
