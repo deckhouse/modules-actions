@@ -58,7 +58,7 @@ runs:
       run: |
         edition=$(echo "${{ inputs.source_repo }}" | sed -nE 's|.*/[^/]*deckhouse[^/]*/([^/]+)/modules.*|\1|p')
         if [ -n "$edition" ]; then
-          echo "Detected edition: "$edition"
+          echo "Detected edition: $edition"
         else
           echo "No edition has been detected."
         fi
