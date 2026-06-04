@@ -54,16 +54,17 @@ runs:
   using: "composite"
   steps:
     - name: Calculate edition
+      id: calc_edition
       shell: bash
       run: |
         edition=$(echo "${{ inputs.source_repo }}" | sed -nE 's|.*/[^/]*deckhouse[^/]*/([^/]+)/modules.*|\1|p')
         if [ -n "$edition" ]; then
           echo "Detected edition: $edition"
+          echo "EDITION=${edition}" >> $GITHUB_ENV
+          echo "build_report_postfix=_${edition}" >> $GITHUB_OUTPUT
         else
           echo "No edition has been detected."
         fi
-
-        echo "EDITION=${edition}" > $GITHUB_ENV
 
     - name: Set secondary repo if input exists
       shell: bash
@@ -198,5 +199,5 @@ runs:
       if: ${{ always() && (steps.build.outcome == 'success' || steps.build.outcome == 'failure') }}
       uses: actions/upload-artifact@v4.4.0
       with:
-        name: build_report_${EDITION}
+        name: build_report${{ steps.calc_edition.outputs.build_report_postfix }}
         path: images_tags_werf.json
