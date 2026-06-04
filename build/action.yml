@@ -53,6 +53,12 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Calculate edition
+      shell: bash
+      run: |
+        edition=$(echo "${{ inputs.source_repo }}" | sed -nE 's|.*/[^/]*deckhouse[^/]*/([^/]+)/modules.*|\1|p')
+        echo "EDITION=${edition}" > $GITHUB_ENV
+
     - name: Set secondary repo if input exists
       shell: bash
       if: ${{ inputs.secondary_repo != '' }}
@@ -181,3 +187,10 @@ runs:
           --oci-empty-base \
           --new_layer "" \
           --new_tag "${{ inputs.module_source }}:${{ inputs.module_name }}"
+
+    - name: Save build report
+      if: ${{ always() && (steps.build.outcome == 'success' || steps.build.outcome == 'failure') }}
+      uses: actions/upload-artifact@v4.4.0
+      with:
+        name: build_report_${EDITION}
+        path: images_tags_werf.json
