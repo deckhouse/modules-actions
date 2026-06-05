@@ -49,17 +49,21 @@ inputs:
   registry_password:
     description: "Password to authenticate to registry"
     required: false
+  edition:
+    description: "Edition of the builded artifact"
+    required: false
+    default: ''
 
 runs:
   using: "composite"
   steps:
-    - name: Calculate edition
-      id: calc_edition
+    - name: Set edition
+      id: set_edition
       shell: bash
       run: |
-        edition=$(echo "${{ inputs.source_repo }}" | sed -nE 's|.*/[^/]*deckhouse[^/]*/([^/]+)/modules.*|\1|p')
+        edition="${{ inputs.edition }}"
         if [ -n "$edition" ]; then
-          echo "Detected edition: $edition"
+          echo "Set edition: $edition"
           echo "EDITION=${edition}" >> $GITHUB_ENV
           echo "build_report_postfix=_${edition}" >> $GITHUB_OUTPUT
         else
@@ -208,7 +212,7 @@ runs:
 
     - name: Save build report
       if: ${{ always() && (steps.build.outcome == 'success' || steps.build.outcome == 'failure') }}
-      uses: actions/upload-artifact@v4.4.0
+      uses: actions/upload-artifact@v8.0.1
       with:
-        name: build_report${{ steps.calc_edition.outputs.build_report_postfix }}
+        name: build_report${{ steps.set_edition.outputs.build_report_postfix }}
         path: images_tags_werf.json
