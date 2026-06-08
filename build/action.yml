@@ -216,3 +216,4 @@ runs:
       with:
         name: build_report${{ steps.set_edition.outputs.build_report_postfix }}
         path: images_tags_werf.json
+        overwrite: true
