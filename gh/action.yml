@@ -1,0 +1,40 @@
+name: "Install GH cli"
+description: "Install GH cli"
+
+inputs:
+  tool_version:
+    description: "GH cli version to install"
+    required: false
+    default: "v2.94.0"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install GH
+      shell: bash
+      run: |
+        set -euo pipefail
+        TOOL_NAME="gh"
+        TOOL_VERSION="${{ inputs.tool_version }}"
+        TOOL_PATH="$RUNNER_TOOL_CACHE/$TOOL_NAME/$TOOL_VERSION"
+        echo "$TOOL_PATH" >> "$GITHUB_PATH"
+        CACHED_VERSION=$($TOOL_PATH/$TOOL_NAME version | tr -d '\n' | cut -f 3 -d ' ' || true)
+        if [[ "${TOOL_VERSION#v}" != "$CACHED_VERSION" ]]; then
+          echo "Current $TOOL_NAME is $CACHED_VERSION, downloading ${TOOL_VERSION}";
+          arch="$(uname -m)"
+          case "$arch" in
+          x86_64|amd64)  pkg_arch="linux_amd64" ;;
+          aarch64|arm64) pkg_arch="linux_arm64" ;;
+          *) echo "Unsupported arch: $arch"; exit 1 ;;
+          esac
+          file_ver="${TOOL_VERSION#v}"
+          tgz="${TOOL_NAME}_${file_ver}_${pkg_arch}.tar.gz"
+          mkdir -p "$TOOL_PATH"
+          curl -Lsfo "$TOOL_PATH/$tgz" https://github.com/cli/cli/releases/download/${TOOL_VERSION}/${tgz}
+          tar -xzf $TOOL_PATH/$tgz -C $TOOL_PATH/
+          mv $TOOL_PATH/${TOOL_NAME}_${file_ver}_${pkg_arch}/bin/${TOOL_NAME} $TOOL_PATH/$TOOL_NAME
+          rm -rf $TOOL_PATH/$tgz $TOOL_PATH/${TOOL_NAME}_${file_ver}_${pkg_arch}
+          chmod +x "$TOOL_PATH/$TOOL_NAME"
+        else
+          echo "Current $TOOL_NAME is $CACHED_VERSION, skipping download"
+        fi
