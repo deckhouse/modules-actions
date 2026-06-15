@@ -33,23 +33,29 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        ver="${{ inputs.gitleaks_version }}"
-        file_ver="${ver#v}"
-        arch="$(uname -m)"
-        case "$arch" in
-          x86_64|amd64)  pkg_arch="linux_x64" ;;
-          aarch64|arm64) pkg_arch="linux_arm64" ;;
-          *) echo "Unsupported arch: $arch"; exit 1 ;;
-        esac
-        base="https://github.com/gitleaks/gitleaks/releases/download/${ver}"
-        tgz="gitleaks_${file_ver}_${pkg_arch}.tar.gz"
-        curl -sSL "$base/$tgz" -o gitleaks.tgz
-        tar -xzf gitleaks.tgz gitleaks
-        chmod +x gitleaks
-        install_dir="$HOME/.local/bin"; mkdir -p "$install_dir"
-        mv gitleaks "$install_dir/gitleaks"
-        echo "$install_dir" >> "$GITHUB_PATH"
-        gitleaks version
+        TOOL_NAME="gitleaks"
+        TOOL_VERSION="${{ inputs.gitleaks_version }}"
+        TOOL_PATH="$RUNNER_TOOL_CACHE/$TOOL_NAME/$TOOL_VERSION"
+        echo "$TOOL_PATH" >> "$GITHUB_PATH"
+        CACHED_VERSION=$($TOOL_PATH/$TOOL_NAME version | tr -d '\n' || true)
+        if [[ "${TOOL_VERSION}" != "$CACHED_VERSION" ]]; then
+          echo "Current $TOOL_NAME is $CACHED_VERSION, downloading ${TOOL_VERSION}";
+          arch="$(uname -m)"
+          case "$arch" in
+            x86_64|amd64)  pkg_arch="linux_x64" ;;
+            aarch64|arm64) pkg_arch="linux_arm64" ;;
+            *) echo "Unsupported arch: $arch"; exit 1 ;;
+          esac
+          file_ver="${TOOL_VERSION#v}"
+          tgz="${TOOL_NAME}_${file_ver}_${pkg_arch}.tar.gz"
+          mkdir -p "$TOOL_PATH"
+          curl -Lsfo "$TOOL_PATH/$tgz" https://github.com/gitleaks/gitleaks/releases/download/${TOOL_VERSION}/${tgz}
+          tar -xzf $TOOL_PATH/$tgz -C $TOOL_PATH/
+          rm -v $TOOL_PATH/$tgz
+          chmod +x "$TOOL_PATH/$TOOL_NAME"
+        else
+          echo "Current $TOOL_NAME is $CACHED_VERSION, skipping download"
+        fi
 
     - name: Setup centralized config
       shell: bash
