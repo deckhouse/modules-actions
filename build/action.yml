@@ -156,15 +156,15 @@ runs:
         werf build --repo=${{ inputs.module_source }}/${{ inputs.module_name }} --save-build-report --build-report-path images_tags_werf.json
       env:
         MODULES_MODULE_TAG: ${{ inputs.module_tag }}
+        REGISTRY_USER: "${{ inputs.registry_user }}"
+        REGISTRY_PASSWORD: "${{ inputs.registry_password }}"
         SVACE_ANALYZE_HOST: "${{ inputs.svace_analyze_host }}"
         SVACE_ANALYZE_SSH_USER: "${{ inputs.svace_analyze_ssh_user }}"
         SVACE_ENABLED: "${{ inputs.svace_enabled }}"
         VAULT_ADDR: "${{ inputs.vault_addr }}"
         VAULT_KEY: "${{ inputs.vault_key }}"
-        TRANSIT_SECRET_ENGINE_PATH: "${{ inputs.transit_secret_engine_path }}"
         VAULT_ROLE: "${{ inputs.vault_role }}"
-        REGISTRY_USER: "${{ inputs.registry_user }}"
-        REGISTRY_PASSWORD: "${{ inputs.registry_password }}"
+        TRANSIT_SECRET_ENGINE_PATH: "${{ inputs.transit_secret_engine_path }}"
 
     - name: Cleanup ssh-agent
       if: ${{ steps.ssh_agent.outcome != 'skipped' && always() }}
