@@ -31,10 +31,45 @@ inputs:
   source_repo_ssh_key:
     description: "SSH private key for the source repository"
     required: false
+  vault_addr:
+    description: "Vault adddress"
+    required: false
+  vault_key:
+    description: "Key in the vault"
+    required: false
+  transit_secret_engine_path:
+    description: "Transit engine secret path"
+    required: false
+  vault_role:
+    description: "Vault auth role"
+    required: false
+  registry_user:
+    description: "User to authenticate to registry"
+    required: false
+  registry_password:
+    description: "Password to authenticate to registry"
+    required: false
+  edition:
+    description: "Edition of the builded artifact"
+    required: false
+    default: ''
 
 runs:
   using: "composite"
   steps:
+    - name: Set edition
+      id: set_edition
+      shell: bash
+      run: |
+        edition="${{ inputs.edition }}"
+        if [ -n "$edition" ]; then
+          echo "Set edition: $edition"
+          echo "EDITION=${edition}" >> $GITHUB_ENV
+          echo "build_report_postfix=_${edition}" >> $GITHUB_OUTPUT
+        else
+          echo "No edition has been detected."
+        fi
+
     - name: Set secondary repo if input exists
       shell: bash
       if: ${{ inputs.secondary_repo != '' }}
@@ -121,9 +156,15 @@ runs:
         werf build --repo=${{ inputs.module_source }}/${{ inputs.module_name }} --save-build-report --build-report-path images_tags_werf.json
       env:
         MODULES_MODULE_TAG: ${{ inputs.module_tag }}
+        REGISTRY_USER: "${{ inputs.registry_user }}"
+        REGISTRY_PASSWORD: "${{ inputs.registry_password }}"
         SVACE_ANALYZE_HOST: "${{ inputs.svace_analyze_host }}"
         SVACE_ANALYZE_SSH_USER: "${{ inputs.svace_analyze_ssh_user }}"
         SVACE_ENABLED: "${{ inputs.svace_enabled }}"
+        VAULT_ADDR: "${{ inputs.vault_addr }}"
+        VAULT_KEY: "${{ inputs.vault_key }}"
+        VAULT_ROLE: "${{ inputs.vault_role }}"
+        TRANSIT_SECRET_ENGINE_PATH: "${{ inputs.transit_secret_engine_path }}"
 
     - name: Cleanup ssh-agent
       if: ${{ steps.ssh_agent.outcome != 'skipped' && always() }}
@@ -136,10 +177,21 @@ runs:
     - name: Bundle the module image
       shell: bash
       run: |
-        IMAGE_SRC="$(jq -r '.Images."bundle".DockerImageName' images_tags_werf.json)"
-        IMAGE_DST="$(jq -r '.Images.bundle.DockerRepo' images_tags_werf.json):${{ inputs.module_tag }}"
+        IMAGE_REPO="$(jq -r '.Images.bundle.DockerRepo' images_tags_werf.json)"
+        IMAGE_SRC="$(jq -r '.Images.bundle.DockerImageName' images_tags_werf.json)"
+        IMAGE_DST="${IMAGE_REPO}:${{ inputs.module_tag }}"
         echo "✨ Bundle image : Pushing ${IMAGE_SRC} to ${IMAGE_DST}"
         crane copy ${IMAGE_SRC} ${IMAGE_DST}
+
+        # Copying attestation for bundle
+        IMAGE_DIGEST="$(jq -r ".Images.bundle.DockerImageDigest" images_tags_werf.json)"
+        IMAGE_DIGEST="${IMAGE_DIGEST#sha256:}"
+        if (crane manifest "${IMAGE_REPO}:sha256-${IMAGE_DIGEST}.att" > /dev/null 2>&1); then
+          echo "✨ [$(date -u)] Copying 'bundle' attestation"
+          crane copy "${IMAGE_REPO}:sha256-${IMAGE_DIGEST}.att" "${IMAGE_REPO}:sha256-${IMAGE_DIGEST}.att"
+        else
+          echo "✨ [$(date -u)] Attestation for 'bundle' not found, skipping..."
+        fi
 
     - name: Prepare the release-channel image
       shell: bash
@@ -157,3 +209,11 @@ runs:
           --oci-empty-base \
           --new_layer "" \
           --new_tag "${{ inputs.module_source }}:${{ inputs.module_name }}"
+
+    - name: Save build report
+      if: ${{ always() && (steps.build.outcome == 'success' || steps.build.outcome == 'failure') }}
+      uses: actions/upload-artifact@v7.0.1
+      with:
+        name: build_report${{ steps.set_edition.outputs.build_report_postfix }}
+        path: images_tags_werf.json
+        overwrite: true
