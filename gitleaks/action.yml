@@ -61,11 +61,11 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        # Copy centralized config to temporary directory (safe for Werf/giterminism)
+        # Copy centralized config to temporary directory
         BASE_CONFIG="${{ github.action_path }}/config/gitleaks.base.toml"
         if [[ -f "$BASE_CONFIG" ]]; then
-          cp "$BASE_CONFIG" "${RUNNER_TEMP}/gitleaks.base.toml"
-          echo "✅ Centralized config copied to ${RUNNER_TEMP}/gitleaks.base.toml"
+          cp "$BASE_CONFIG" "gitleaks.base.toml"
+          echo "✅ Centralized config copied to gitleaks.base.toml"
         else
           echo "⚠️  Warning: Centralized config not found at $BASE_CONFIG"
           exit 1
@@ -87,11 +87,11 @@ runs:
             echo "⚠️  WARNING: Local config file .gitleaks.toml exists but does not contain [extend] section"
             echo "   We cannot be sure this is the expected extend configuration."
             echo "   Ignoring local config file and using base config only."
-            echo "config_arg=--config ${RUNNER_TEMP}/gitleaks.base.toml" >> "$GITHUB_OUTPUT"
+            echo "config_arg=--config gitleaks.base.toml" >> "$GITHUB_OUTPUT"
           fi
         else
           # Use centralized config only
-          echo "config_arg=--config ${RUNNER_TEMP}/gitleaks.base.toml" >> "$GITHUB_OUTPUT"
+          echo "config_arg=--config gitleaks.base.toml" >> "$GITHUB_OUTPUT"
           echo "🔹 Using centralized config only (no local customization)"
         fi
 
@@ -112,11 +112,11 @@ runs:
       run: |
         set -euo pipefail
         CONFIG_ARG="${{ steps.config.outputs.config_arg }}"
-        
+
         BASE_COMMIT=$(git rev-parse HEAD^1)
         echo "Base commit: $BASE_COMMIT"
         echo "Scanning range: ${BASE_COMMIT}..HEAD"
-        
+
         gitleaks detect --no-banner --redact --log-level debug \
           --report-format json --report-path gitleaks.json \
           --log-opts="${BASE_COMMIT}..HEAD" \
@@ -195,3 +195,9 @@ runs:
         name: gitleaks-report
         path: gitleaks.json
         if-no-files-found: ignore
+
+    - name: Cleanup
+      shell: bash
+      if: always()
+      run: |
+        rm gitleaks.base.toml
