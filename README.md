@@ -13,7 +13,7 @@ This repository contains GitHub Actions workflows for building and deploying mod
 | Workflow                              | Description                                                                                                           |
 |---------------------------------------|-----------------------------------------------------------------------------------------------------------------------|
 | [**setup**](./setup/action.yml)       | Sets up the environment for building and deploying modules. This workflow **must** be run before any other workflows. |
-| [**build**](./build/action.yml)       | Builds the Deckhouse modules using the [werf](https://werf.io/) tool.                                                 |
+| [**build**](./build/action.yml)       | Builds Deckhouse modules with [werf](https://werf.io/), copies bundle VEX attestations, and uploads the build report. See [build docs](./.docs/build.md). |
 | [**deploy**](./deploy/action.yml)     | Deploys the Deckhouse modules to the one of selected release channels.                                                |
 | [**cve_scan**](./cve_scan/action.yml) | Trivy CVE Scan of module images. Documentation can be found [here](./.docs/cve_scan.md)                               |
 | [**svace_analyze**](./svace_analyze/action.yml) | Include svace analyze action to analyze and import builds made with svace tool  |
@@ -42,3 +42,11 @@ To use these GitHub Action workflows in your own repository:
 3. Make sure to configure any necessary secrets or environment variables in your GitHub repository settings to enable secure deployment.
 
 4. Trigger the workflows manually or automatically on each push, pull request, or any other event as needed.
+
+## Documentation
+
+| Topic | Description |
+|-------|-------------|
+| [Build action](./.docs/build.md) | Vault/registry inputs, edition support, VEX attestation copy, build report artifacts |
+| [CVE scan](./.docs/cve_scan.md) | Trivy scanning and DefectDojo upload |
+| [VEX attestations changelog](./.docs/CHANGELOG-vex-attestations.md) | Changes in branch `vex-attestations` vs `main` |
