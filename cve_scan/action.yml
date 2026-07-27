@@ -1,5 +1,5 @@
 name: 'Trivy CVE Scan'
-description: 'Build Deckhouse module'
+description: 'Scan container images for CVEs and licenses and upload reports to DefectDojo'
 inputs:
   prod_registry:
     description: 'Prod registry host (e.g., registry.deckhouse.io)'
@@ -19,29 +19,11 @@ inputs:
   dev_registry_password:
     description: 'Password for dev-registry authentication'
     required: true
-  codeowners_repo_token:
-    description: 'Fox token for downloading CODEOWNERS configmap'
-    required: true
-  deckhouse_private_repo:
-    description: 'Deckhouse private repository'
-    required: true
-  dd_url:
-    description: 'DefectDojo API URL'
-    required: true
-  dd_token:
-    description: 'DefectDojo API token'
-    required: true
   source_tag:
     description: 'Tag to scan (e.g., main, v1.74.3, pr123, release-1.73)'
     required: true
   case:
-    description: 'Scan type: deckhouse | external_modules | CSE'
-    required: true
-  cve_test_repo_git:
-    description: 'cve_scan repo'
-    required: true
-  cve_ssh_private_key:
-    description: 'cve_scan repo key'
+    description: 'Scan type: deckhouse | External Modules | CSE'
     required: true
   external_module_name:
     description: 'External module name (required when case=External Modules)'
@@ -68,7 +50,7 @@ inputs:
     required: false
     default: 'False'
   digest_from_werf:
-    description: 'Path to werf images tags file (for CSE external modules)'
+    description: 'Prefix of Werf image digest files (for CSE external modules)'
     required: false
     default: 'images_tags_werf'
   scan_users:
@@ -80,12 +62,12 @@ inputs:
     required: false
     default: 'cve-scan'
   trivy_reports_log_output:
-    description: 'Trivy log output level (0=off, 1=CVE only, 2=CVE+License)'
+    description: 'Trivy log output level (0=off, 1=CVE report, 2=license report)'
     required: false
     default: '1'
   role_name:
     description: 'Repository name'
-    required: false
+    required: true
 
 runs:
   using: "composite"
@@ -123,42 +105,42 @@ runs:
       shell: bash
       run: |
         rm -rf /tmp/cve-scripts
-        git clone --depth 1 --branch v1.0 ${{ steps.secrets.outputs.CVE_TEST_REPO_GIT }} /tmp/cve-scripts
-        cp /tmp/cve-scripts/* ./
+        git clone --depth 1 --branch v2.0 "${{ steps.secrets.outputs.CVE_TEST_REPO_GIT }}" /tmp/cve-scripts
+        cp /tmp/cve-scripts/*.sh /tmp/cve-scripts/*.py ./
+        chmod +x *.sh *.py
 
     - name: Run Trivy CVE Scan
       shell: bash
       env:
-        TRIVY_BIN_VERSION: "v0.67.2"
-        TRIVY_REPO_ID: "2181"
-        TRIVY_PROD_REGISTRY: "registry.deckhouse.io"
-        TRIVY_DEV_REGISTRY: "dev-registry.deckhouse.io"
-        TRIVY_DB_URL: "${{ inputs.prod_registry }}/deckhouse/ee/security/trivy-db:2"
-        TRIVY_JAVA_DB_URL: "${{ inputs.prod_registry }}/deckhouse/ee/security/trivy-java-db:1"
-        TRIVY_POLICY_URL: "${{ inputs.prod_registry }}/deckhouse/ee/security/trivy-bdu:1"
-        TRIVY_REPORTS_LOG_OUTPUT: "${{ inputs.trivy_reports_log_output }}"
-        PROD_REGISTRY: "${{ inputs.prod_registry }}"
-        PROD_REGISTRY_USER: "${{ inputs.prod_registry_user }}"
-        PROD_REGISTRY_PASSWORD: "${{ inputs.prod_registry_password }}"
-        DEV_REGISTRY: "${{ inputs.dev_registry }}"
-        DEV_REGISTRY_USER: "${{ inputs.dev_registry_user }}"
-        DEV_REGISTRY_PASSWORD: "${{ inputs.dev_registry_password }}"
-        SOURCE_TAG: "${{ inputs.source_tag }}"
-        CASE: "${{ inputs.case }}"
-        EXTERNAL_MODULE_NAME: "${{ inputs.external_module_name }}"
-        RELEASE_IN_DEV: "${{ inputs.release_in_dev }}"
-        SCAN_USERS: "${{ inputs.scan_users }}"
-        SCAN_SEVERAL_LATEST_RELEASES: "${{ inputs.scan_several_latest_releases }}"
-        LATEST_RELEASES_AMOUNT: "${{ inputs.latest_releases_amount }}"
-        MODULE_PROD_REGISTRY_CUSTOM_PATH: "${{ inputs.module_prod_registry_custom_path }}"
-        MODULE_DEV_REGISTRY_CUSTOM_PATH: "${{ inputs.module_dev_registry_custom_path }}"
-        DIGEST_FROM_WERF: "${{ inputs.digest_from_werf }}"
-        DD_URL: "${{ steps.secrets.outputs.DD_URL }}"
-        DD_TOKEN: "${{ steps.secrets.outputs.DD_TOKEN }}"
-        CODEOWNERS_REPO_TOKEN: "${{ steps.secrets.outputs.CODEOWNERS_REPO_TOKEN }}"
-        DECKHOUSE_PRIVATE_REPO: "${{ steps.secrets.outputs.DECKHOUSE_PRIVATE_REPO }}"
-        CONFIGMAP_PROJECT_ID: "4352"
-        WORKDIR: "${{ github.workspace }}/${{ inputs.workdir }}"
+        CS_TRIVY_BIN_VERSION: "v0.67.2"
+        CS_TRIVY_REPO_ID: "2181"
+        CS_TRIVY_PROD_REGISTRY: "${{ inputs.prod_registry }}"
+        CS_TRIVY_DB_URL: "${{ inputs.prod_registry }}/deckhouse/ee/security/trivy-db:2"
+        CS_TRIVY_JAVA_DB_URL: "${{ inputs.prod_registry }}/deckhouse/ee/security/trivy-java-db:1"
+        CS_TRIVY_POLICY_URL: "${{ inputs.prod_registry }}/deckhouse/ee/security/trivy-bdu:1"
+        CS_TRIVY_REPORTS_LOG_OUTPUT: "${{ inputs.trivy_reports_log_output }}"
+        CS_PROD_REGISTRY: "${{ inputs.prod_registry }}"
+        CS_PROD_REGISTRY_USER: "${{ inputs.prod_registry_user }}"
+        CS_PROD_REGISTRY_PASSWORD: "${{ inputs.prod_registry_password }}"
+        CS_DEV_REGISTRY: "${{ inputs.dev_registry }}"
+        CS_DEV_REGISTRY_USER: "${{ inputs.dev_registry_user }}"
+        CS_DEV_REGISTRY_PASSWORD: "${{ inputs.dev_registry_password }}"
+        CS_SOURCE_TAG: "${{ inputs.source_tag }}"
+        CS_CASE: "${{ inputs.case }}"
+        CS_EXTERNAL_MODULE_NAME: "${{ inputs.external_module_name }}"
+        CS_RELEASE_IN_DEV: "${{ inputs.release_in_dev }}"
+        CS_SCAN_USERS: "${{ inputs.scan_users }}"
+        CS_SCAN_SEVERAL_LATEST_RELEASES: "${{ inputs.scan_several_latest_releases }}"
+        CS_LATEST_RELEASES_AMOUNT: "${{ inputs.latest_releases_amount }}"
+        CS_MODULE_PROD_REGISTRY_CUSTOM_PATH: "${{ inputs.module_prod_registry_custom_path }}"
+        CS_MODULE_DEV_REGISTRY_CUSTOM_PATH: "${{ inputs.module_dev_registry_custom_path }}"
+        CS_DIGEST_FROM_WERF: "${{ inputs.digest_from_werf }}"
+        CS_DD_URL: "${{ steps.secrets.outputs.DD_URL }}"
+        CS_DD_TOKEN: "${{ steps.secrets.outputs.DD_TOKEN }}"
+        CS_CODEOWNERS_REPO_TOKEN: "${{ steps.secrets.outputs.CODEOWNERS_REPO_TOKEN }}"
+        CS_DECKHOUSE_PRIVATE_REPO: "${{ steps.secrets.outputs.DECKHOUSE_PRIVATE_REPO }}"
+        CS_CONFIGMAP_PROJECT_ID: "4352"
+        CS_WORKDIR: "${{ github.workspace }}/${{ inputs.workdir }}"
       run: |
         ./cve_scan.sh
 
