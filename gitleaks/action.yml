@@ -71,28 +71,47 @@ runs:
           exit 1
         fi
 
-    - name: Check for optional config
+    - name: Compose the scan config
       id: config
       shell: bash
       run: |
         set -euo pipefail
+        # A module's .gitleaks.toml must extend the centralized config, not replace it.
+        # Gitleaks chains configs through [extend] path, so drop the module's own [extend]
+        # section, point a fresh one at the config copied above, and keep the rest of the
+        # module config verbatim. Resulting chain:
+        #   gitleaks defaults <- centralized base config <- module config
+        # The module config stays standalone-valid, so `gitleaks detect` still works locally.
+        BASE_CONFIG="$(pwd)/gitleaks.base.toml"
+        MERGED_CONFIG="${RUNNER_TEMP}/gitleaks.merged.toml"
+
         if [[ -f ".gitleaks.toml" ]]; then
-          # Local config exists - check if it has [extend] section
-          if grep -q "^\[extend\]" .gitleaks.toml; then
-            # Has extend section - use as is
-            echo "config_arg=--config .gitleaks.toml" >> "$GITHUB_OUTPUT"
-            echo "✅ Found local config with [extend] section - using as is"
-          else
-            # No extend section - warn and ignore, use base config only
-            echo "⚠️  WARNING: Local config file .gitleaks.toml exists but does not contain [extend] section"
-            echo "   We cannot be sure this is the expected extend configuration."
-            echo "   Ignoring local config file and using base config only."
-            echo "config_arg=--config gitleaks.base.toml" >> "$GITHUB_OUTPUT"
+          MODULE_EXTEND_PATH="$(awk '
+            /^[[:space:]]*\[extend\]/ { in_extend = 1; next }
+            /^[[:space:]]*\[/         { in_extend = 0 }
+            in_extend && /^[[:space:]]*path[[:space:]]*=/ { print }
+          ' .gitleaks.toml)"
+          if [[ -n "$MODULE_EXTEND_PATH" ]]; then
+            echo "⚠️  WARNING: .gitleaks.toml declares its own [extend] path:"
+            echo "     $MODULE_EXTEND_PATH"
+            echo "   It is replaced by the centralized config."
           fi
+
+          {
+            printf '[extend]\nuseDefault = false\npath = "%s"\n\n' "$BASE_CONFIG"
+            awk '
+              /^[[:space:]]*\[extend\]/ { skip = 1; next }
+              /^[[:space:]]*\[/         { skip = 0 }
+              !skip
+            ' .gitleaks.toml
+          } > "$MERGED_CONFIG"
+
+          echo "config_arg=--config $MERGED_CONFIG" >> "$GITHUB_OUTPUT"
+          echo "✅ Composed centralized config + module .gitleaks.toml into $MERGED_CONFIG"
         else
-          # Use centralized config only
+          # No module config - use centralized config only
           echo "config_arg=--config gitleaks.base.toml" >> "$GITHUB_OUTPUT"
-          echo "🔹 Using centralized config only (no local customization)"
+          echo "🔹 Using centralized config only (no module .gitleaks.toml)"
         fi
 
     - name: Gitleaks scan (full)
@@ -200,4 +219,4 @@ runs:
       shell: bash
       if: always()
       run: |
-        rm gitleaks.base.toml
+        rm -f gitleaks.base.toml "${RUNNER_TEMP}/gitleaks.merged.toml"
