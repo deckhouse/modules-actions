@@ -2,7 +2,7 @@
 
 ## Description
 This CI runs a Trivy CVE and License scan against module images and their submodule images, then uploads reports to DefectDojo.  
-The action clones the [cve-scan](https://github.com/deckhouse/cve-scan) scripts and runs them. The script resolves the registry and tag (release vs dev) from *source_tag* and *case*. If your module uses non-standard paths in registries, set *module_prod_registry_custom_path* and *module_dev_registry_custom_path*.
+The action clones the [cve-scan](https://github.com/deckhouse/cve-scan) scripts and runs them. It passes action inputs to the script as `CS_*` environment variables. The script resolves the registry and tag (release vs dev) from *source_tag* and *case*. If your module uses non-standard paths in registries, set *module_prod_registry_custom_path* and *module_dev_registry_custom_path*.
 
 **CI use cases:**
 - **Scheduled** — scan main and several latest releases (e.g. 2–3 times a week)
@@ -26,9 +26,11 @@ deckhouse/modules-actions/cve_scan@main
 | `scan_several_latest_releases` | Optional. Scan several latest releases. `true`/`false`. Default: `false` |
 | `latest_releases_amount` | Optional. How many latest releases to scan. Default: `3` |
 | `release_in_dev` | Optional. If `true`, the release tag is taken from the dev registry. Default: `false` |
-| `trivy_reports_log_output` | Optional. Trivy report verbosity in logs: `0` — off, `1` — CVE/FS only, `2` — CVE + License. Default: `1` |
+| `trivy_reports_log_output` | Optional. Trivy report verbosity in logs: `0` — off, `1` — CVE report, `2` — license report. Default: `1` |
 | `module_prod_registry_custom_path` | Custom path for the module in the prod registry. Default: `deckhouse/fe/modules` |
 | `module_dev_registry_custom_path` | Custom path for the module in the dev registry. Default: `sys/deckhouse-oss/modules` |
+| `digest_from_werf` | Prefix of Werf image digest files for CSE external modules. Default: `images_tags_werf` |
+| `scan_users` | Enable container-user validation for CSE. `true`/`false`. Default: `false` |
 | `workdir` | Working directory for scan artifacts. Default: `cve-scan` |
 
 ### Required inputs
@@ -75,7 +77,7 @@ on:
         description: 'If true, release tag is taken from dev registry. Default: false'
         required: false
       trivy_reports_log_output:
-        description: 'Optional. 0=off, 1=CVE only, 2=CVE+License. Default: 1'
+        description: 'Optional. 0=off, 1=CVE report, 2=license report. Default: 1'
         required: false
       external_module_name:
         description: 'For External Modules: module name to scan'
@@ -92,7 +94,7 @@ on:
 ```
 
 ### Example: External Modules (e.g. csi-ceph)
-Use your own Vault or repo secrets for **registry** credentials (and anything else outside the built-in list). DefectDojo, CODEOWNERS, Deckhouse private repo, and cve-scan clone credentials are imported by the action itself; the `dd_*`, `codeowners_*`, `deckhouse_private_repo`, and `cve_*` inputs in the snippet below can remain placeholders if your action version still requires them, or follow your organization’s convention.
+Pass registry credentials from repository or organization secrets. DefectDojo, CODEOWNERS, Deckhouse private repo, and cve-scan clone credentials are imported by the action from BOB.
 
 ```yaml
   cve_scan_on_pr:
@@ -149,7 +151,7 @@ Use your own Vault or repo secrets for **registry** credentials (and anything el
 ```
 
 ### Example: case: deckhouse
-For the main Deckhouse repo, *case* is `deckhouse` and *source_tag* is set from the workflow (e.g. from a previous step like `steps.scan_type.outputs.tag`). Registry credentials must be imported from BOB secrets. The job still needs `id-token: write` because of the built-in Vault step.
+For the main Deckhouse repo, *case* is `deckhouse` and *source_tag* is set from the workflow (e.g. from a previous step like `steps.scan_type.outputs.tag`). Provide registry credentials as workflow secrets. The job still needs `id-token: write` because of the built-in Vault step.
 
 ```yaml
   - uses: deckhouse/modules-actions/cve_scan@main

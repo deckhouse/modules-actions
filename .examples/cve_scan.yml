@@ -29,7 +29,7 @@ on:
         description: 'If true, release tag is taken from dev registry. Default: false'
         required: false
       trivy_reports_log_output:
-        description: 'Optional. 0=off, 1=CVE only, 2=CVE+License. Default: 1'
+        description: 'Optional. 0=off, 1=CVE report, 2=license report. Default: 1'
         required: false
       external_module_name:
         description: 'For External Modules: module name whose tag will be scanned'
@@ -50,7 +50,7 @@ jobs:
           REPO: ${{ github.event.repository.name }}
         run: echo "role_name=${REPO##*/}" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
-      - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
+      - uses: deckhouse/modules-actions/cve_scan@main
         with:
           source_tag: 'pr${{ github.event.number }}'
           case: "External Modules"
@@ -78,7 +78,7 @@ jobs:
           REPO: ${{ github.event.repository.name }}
         run: echo "role_name=${REPO##*/}" >> $GITHUB_OUTPUT
       - uses: actions/checkout@v4
-      - uses: deckhouse/modules-actions/cve_scan@new_cve_scan
+      - uses: deckhouse/modules-actions/cve_scan@main
         with:
           source_tag: ${{ github.event.inputs.release_branch || github.event.repository.default_branch }}
           case: "External Modules"
