@@ -25,7 +25,7 @@ runs:
       uses: actions/checkout@v4
       if: ${{ inputs.scan_mode == 'diff' }}
       with:
-        ref: refs/pull/${{ github.event.number }}/merge
+        ref: ${{ github.event.pull_request.head.sha }}
         fetch-depth: 0
         persist-credentials: false
 
