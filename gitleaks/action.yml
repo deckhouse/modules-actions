@@ -113,8 +113,15 @@ runs:
         set -euo pipefail
         CONFIG_ARG="${{ steps.config.outputs.config_arg }}"
 
-        BASE_COMMIT=$(git rev-parse HEAD^1)
-        echo "Base commit: $BASE_COMMIT"
+        BASE_REF="${{ github.event.pull_request.base.ref }}"
+        BASE_REMOTE_REF="refs/remotes/origin/${BASE_REF}"
+
+        git fetch --no-tags --prune origin "+refs/heads/${BASE_REF}:${BASE_REMOTE_REF}"
+        BASE_COMMIT=$(git merge-base HEAD "$BASE_REMOTE_REF")
+
+        echo "PR base branch: ${BASE_REF}"
+        echo "PR base ref: ${BASE_REMOTE_REF}"
+        echo "Merge-base commit: ${BASE_COMMIT}"
         echo "Scanning range: ${BASE_COMMIT}..HEAD"
 
         gitleaks detect --no-banner --redact --log-level debug \
