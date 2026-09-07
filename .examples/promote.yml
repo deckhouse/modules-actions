@@ -1,0 +1,30 @@
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag of the module, e.g., v1.21.1"
+        type: string
+        required: true
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    name: Promote the module
+    steps:
+      - uses: actions/checkout@v4
+      - uses: deckhouse/modules-actions/setup@v1
+        with:
+          registry: registry.deckhouse.io
+          registry_login: ${{ secrets.REGISTRY_LOGIN }}
+          registry_password: ${{ secrets.REGISTRY_PASSWORD }}
+      - uses: deckhouse/modules-actions/setup@v1
+        with:
+          registry: registry.deckhouse.io
+          registry_login: ${{ secrets.STAGE_REGISTRY_LOGIN }}
+          registry_password: ${{ secrets.STAGE_REGISTRY_PASSWORD }}
+      - uses: deckhouse/modules-actions/promote@v1
+        with:
+          module_source: registry.deckhouse.io/deckhouse/ce/modules
+          module_target: registry.deckhouse.io/deckhouse/ce/modules
+          module_name: everything-controller
+          module_tag: ${{ github.event.inputs.tag }}
