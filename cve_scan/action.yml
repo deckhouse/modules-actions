@@ -106,7 +106,7 @@ runs:
       run: |
         rm -rf /tmp/cve-scripts
         git clone --depth 1 --branch v2.0 "${{ steps.secrets.outputs.CVE_TEST_REPO_GIT }}" /tmp/cve-scripts
-        cp /tmp/cve-scripts/*.sh /tmp/cve-scripts/*.py /tmp/cve-scripts/lib ./
+        cp -r /tmp/cve-scripts/*.sh /tmp/cve-scripts/*.py /tmp/cve-scripts/lib ./
         chmod +x *.sh *.py
 
     - name: Run Trivy CVE Scan
