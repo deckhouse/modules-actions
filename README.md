@@ -15,6 +15,7 @@ This repository contains GitHub Actions workflows for building and deploying mod
 | [**setup**](./setup/action.yml)       | Sets up the environment for building and deploying modules. This workflow **must** be run before any other workflows. |
 | [**build**](./build/action.yml)       | Builds Deckhouse modules with [werf](https://werf.io/), copies bundle VEX attestations, and uploads the build report. See [build docs](./.docs/build.md). |
 | [**deploy**](./deploy/action.yml)     | Deploys the Deckhouse modules to the one of selected release channels.                                                |
+| [**promote**](./promote/action.yaml)  | Copies (promotes) a module, its component images, and their attestations from one registry repository to another.    |
 | [**cve_scan**](./cve_scan/action.yml) | Trivy CVE Scan of module images. Documentation can be found [here](./.docs/cve_scan.md)                               |
 | [**svace_analyze**](./svace_analyze/action.yml) | Include svace analyze action to analyze and import builds made with svace tool  |
 | [**translate-changelog**](./translate-changelog/action.yml) | Translates Russian changelog files to English and creates a PR |
@@ -26,10 +27,11 @@ All examples are located in the [examples](./.examples) directory. They show how
 
 1. `build.yaml` — can be run for each PR commit and when a new release is created. Builds the modules and pushes them to the container registry.
 2. `deploy.yaml` — can be run after releasing a new version of the modules. Deploys the modules to the selected release channel.
-3. `cve_scan.yaml` — can run for each PR commit, manually and by push to main branch. Scans modules images for CVE and uploads reports to DefectDojo
-4. `svace_analyze.yaml` — can be run after successfully build with svace tool. Analyze builds with svace analyze tool and imports to the Svacer.
-5. `translate-changelog.yml` — runs on push to any branch. Translates Russian changelog files to English and creates a PR.
-6. `merge-and-release.yml` — runs when a label is added to a PR. Merges the PR and creates a GitHub release.
+3. `promote.yml` — can be run manually to copy a module, its component images, and their attestations from one registry repository to another.
+4. `cve_scan.yaml` — can run for each PR commit, manually and by push to main branch. Scans modules images for CVE and uploads reports to DefectDojo
+5. `svace_analyze.yaml` — can be run after successfully build with svace tool. Analyze builds with svace analyze tool and imports to the Svacer.
+6. `translate-changelog.yml` — runs on push to any branch. Translates Russian changelog files to English and creates a PR.
+7. `merge-and-release.yml` — runs when a label is added to a PR. Merges the PR and creates a GitHub release.
 
 ## Usage
 

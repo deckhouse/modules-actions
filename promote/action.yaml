@@ -1,0 +1,87 @@
+name: 'Promote Deckhouse Module'
+description: 'Promote Deckhouse module'
+inputs:
+  module_source:
+    description: 'Source registry repository address for copying the module, e.g., registry.example.com/module-source'
+    required: true
+  module_target:
+    description: 'Target registry repository address to copy the module into, e.g., registry.example.com/module-source'
+    required: true
+  module_name:
+    description: 'Name of the module, e.g., my-module'
+    required: true
+  module_tag:
+    description: 'The version of the module to deploy to release channel, e.g., v1.21.1'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Copy ${{ inputs.module_name }} module from ${{ inputs.module_source }} to ${{ inputs.module_target }}
+      shell: bash
+      env:
+        MODULES_MODULE_SOURCE: ${{ inputs.module_source }}
+        MODULES_MODULE_TARGET: ${{ inputs.module_target }}
+        MODULES_MODULE_NAME: ${{ inputs.module_name }}
+        MODULES_MODULE_TAG: ${{ inputs.module_tag }}
+      run: |
+        set -euo pipefail
+        function regctl_copy() {
+          local attempt
+          for attempt in $(seq 1 5); do
+            regctl image copy "$@" && return 0
+            [[ $attempt -eq 5 ]] && return 1
+            echo "⚠️ [$(date -u)] regctl copy failed (attempt ${attempt}/5), retrying in 5s..."
+            sleep 5
+          done
+        }
+
+        SRC_REPO="${MODULES_MODULE_SOURCE}/${MODULES_MODULE_NAME}"
+        DST_REPO="${MODULES_MODULE_TARGET}/${MODULES_MODULE_NAME}"
+
+        if GET_FILE_STDERR=$(regctl image get-file "${SRC_REPO}:${MODULES_MODULE_TAG}" /images_digests.json 2>&1 1>images_digests-promote.json); then
+          GET_FILE_FAILED=0
+        else
+          GET_FILE_FAILED=1
+        fi
+
+        if [[ ${GET_FILE_FAILED} -eq 1 ]] && [[ "${GET_FILE_STDERR}" != "not found" ]]; then
+          echo "${GET_FILE_STDERR}" >&2
+          exit 1
+        elif [[ ${GET_FILE_FAILED} -eq 1 ]]; then
+          echo "⚓️ 💫 [$(date -u)] images_digests.json not found in '${SRC_REPO}:${MODULES_MODULE_TAG}', skipping..."
+        else
+          echo "⚓️ 💫 [$(date -u)] Promoting component images from images_digests.json (by digest)"
+          while IFS= read -r IMG_DIGEST; do
+            [[ -z "${IMG_DIGEST}" ]] && continue
+            SRC_REF="${SRC_REPO}@${IMG_DIGEST}"
+            DST_REF="${DST_REPO}@${IMG_DIGEST}"
+            echo "⚓️ 💫 [$(date -u)] Promoting '${SRC_REF}' -> '${DST_REF}'"
+            regctl_copy "${SRC_REF}" "${DST_REF}"
+            D_HEX="${IMG_DIGEST#sha256:}"
+            SRC_ATT="${SRC_REPO}:sha256-${D_HEX}.att"
+            DST_ATT="${DST_REPO}:sha256-${D_HEX}.att"
+            if regctl image manifest "${SRC_ATT}" >/dev/null 2>&1; then
+              echo "⚓️ 💫 [$(date -u)] Copying attestation '${SRC_ATT}' -> '${DST_ATT}'"
+              regctl_copy "${SRC_ATT}" "${DST_ATT}"
+            fi
+          done < <(jq -r '[.. | strings | select(test("^sha256:[a-f0-9]{64}$"))] | unique | .[]' images_digests-promote.json)
+        fi
+
+        regctl_copy "${SRC_REPO}:${MODULES_MODULE_TAG}" "${DST_REPO}:${MODULES_MODULE_TAG}"
+
+        BUNDLE_DIGEST="$(regctl image digest "${SRC_REPO}:${MODULES_MODULE_TAG}")"
+        D_HEX="${BUNDLE_DIGEST#sha256:}"
+        SRC_ATT="${SRC_REPO}:sha256-${D_HEX}.att"
+        DST_ATT="${DST_REPO}:sha256-${D_HEX}.att"
+        if regctl image manifest "${SRC_ATT}" >/dev/null 2>&1; then
+          echo "⚓️ 💫 [$(date -u)] Copying 'bundle' attestation '${SRC_ATT}' -> '${DST_ATT}'"
+          regctl_copy "${SRC_ATT}" "${DST_ATT}"
+        fi
+
+        echo "⚓️ 💫 [$(date -u)] Registering the module '${MODULES_MODULE_NAME}' in '${MODULES_MODULE_TARGET}'"
+        regctl_copy "${MODULES_MODULE_SOURCE}:${MODULES_MODULE_NAME}" "${MODULES_MODULE_TARGET}:${MODULES_MODULE_NAME}"
+
+        regctl_copy "${SRC_REPO}/release:${MODULES_MODULE_TAG}" "${DST_REPO}/release:${MODULES_MODULE_TAG}"
+
+        rm images_digests-promote.json
