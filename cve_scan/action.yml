@@ -68,6 +68,13 @@ inputs:
   role_name:
     description: 'Repository name'
     required: true
+  only_images:
+    description: >-
+      Optional JSON array of "<module>.<image>" keys (e.g. changed_compact
+      from the build_fe job) to restrict the scan to. Unset/empty scans
+      every image in the enriched digests.
+    required: false
+    default: ''
 
 runs:
   using: "composite"
@@ -141,6 +148,7 @@ runs:
         CS_DECKHOUSE_PRIVATE_REPO: "${{ steps.secrets.outputs.DECKHOUSE_PRIVATE_REPO }}"
         CS_CONFIGMAP_PROJECT_ID: "4352"
         CS_WORKDIR: "${{ github.workspace }}/${{ inputs.workdir }}"
+        CS_ONLY_IMAGES: "${{ inputs.only_images }}"
       run: |
         ./cve_scan.sh
 
