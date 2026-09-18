@@ -101,10 +101,11 @@ runs:
     - name: Clone repository
       shell: bash
       run: |
-        rm -rf /tmp/cve-scripts
-        git clone --depth 1 --branch main "${{ steps.secrets.outputs.CVE_TEST_REPO_GIT }}" /tmp/cve-scripts
-        cp -r /tmp/cve-scripts/*.sh /tmp/cve-scripts/*.py /tmp/cve-scripts/lib ./
-        chmod +x *.sh *.py
+        cve_scripts_dir=$(mktemp -d -t cve-scripts.XXXXXXXX)
+        git clone --depth 1 --branch main "${{ steps.secrets.outputs.CVE_TEST_REPO_GIT }}" "${cve_scripts_dir}"
+        chmod +x "$cve_scripts_dir"/*.sh "$cve_scripts_dir"/*.py
+        echo "cve_scripts_dir=${cve_scripts_dir}" >> "$GITHUB_ENV"
+        echo "Scripts cloned into ${cve_scripts_dir}"
 
     - name: Run Trivy CVE Scan
       shell: bash
