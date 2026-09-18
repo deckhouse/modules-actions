@@ -69,12 +69,11 @@ inputs:
     description: 'Repository name'
     required: true
   only_images:
-    description: >-
-      Optional JSON array of "<module>.<image>" keys (e.g. changed_compact
-      from the build_fe job) to restrict the scan to. Unset/empty scans
-      every image in the enriched digests.
+    description: 'Images for cve scan, JSON format. Ex: ["module.image", "module2.image"]'
     required: false
-    default: ''
+  target_tag:
+    description: 'Base ref tag for compare with source tag. If empty, fallback to main'
+    required: false
 
 runs:
   using: "composite"
@@ -149,6 +148,7 @@ runs:
         CS_CONFIGMAP_PROJECT_ID: "4352"
         CS_WORKDIR: "${{ github.workspace }}/${{ inputs.workdir }}"
         CS_ONLY_IMAGES: "${{ inputs.only_images }}"
+        CS_TARGET_TAG: "${{ inputs.target_tag }}"
       run: |
         ./cve_scan.sh
 
