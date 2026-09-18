@@ -1,24 +1,6 @@
 name: 'Trivy CVE Scan'
 description: 'Scan container images for CVEs and licenses and upload reports to DefectDojo'
 inputs:
-  prod_registry:
-    description: 'Prod registry host (e.g., registry.deckhouse.io)'
-    required: true
-  prod_registry_user:
-    description: 'Username for prod registry authentication'
-    required: true
-  prod_registry_password:
-    description: 'Password for prod registry authentication'
-    required: true
-  dev_registry:
-    description: 'Dev-registry host (e.g., dev-registry.deckhouse.io)'
-    required: true
-  dev_registry_user:
-    description: 'Username for dev-registry authentication'
-    required: true
-  dev_registry_password:
-    description: 'Password for dev-registry authentication'
-    required: true
   source_tag:
     description: 'Tag to scan (e.g., main, v1.74.3, pr123, release-1.73)'
     required: true
@@ -53,10 +35,6 @@ inputs:
     description: 'Prefix of Werf image digest files (for CSE external modules)'
     required: false
     default: 'images_tags_werf'
-  scan_users:
-    description: 'Enable user validation scan for CSE (True/False)'
-    required: false
-    default: 'False'
   workdir:
     description: 'Working directory for temporary files'
     required: false
@@ -68,6 +46,16 @@ inputs:
   role_name:
     description: 'Repository name'
     required: true
+  only_images:
+    description: 'Images for cve scan, JSON format. Ex: ["module.image", "module2.image"]'
+    required: false
+  only_images_enabled:
+    description: 'Enable scan only changed images in PR'
+    required: false
+    default: "False"
+  target_tag:
+    description: 'Base ref tag for compare with source tag. If empty, fallback to main'
+    required: false
 
 runs:
   using: "composite"
@@ -88,6 +76,15 @@ runs:
           projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets CVE_TEST_REPO_GIT | CVE_TEST_REPO_GIT ;
           projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets DECKHOUSE_PRIVATE_REPO | DECKHOUSE_PRIVATE_REPO ;
           projects/data/b050f3bd-733f-4746-9640-9df80d484074/CODEOWNERS_REPO_TOKEN CODEOWNERS_REPO_TOKEN | CODEOWNERS_REPO_TOKEN ;
+          projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets TRIVY_PROD_REGISTRY | TRIVY_PROD_REGISTRY ;
+          projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets TRIVY_PROD_REGISTRY_USER | TRIVY_PROD_REGISTRY_USER ;
+          projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets TRIVY_PROD_REGISTRY_PASSWORD | TRIVY_PROD_REGISTRY_PASSWORD ;
+          projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets PROD_READ_REGISTRY | PROD_READ_REGISTRY ;
+          projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets PROD_READ_REGISTRY_USER | PROD_READ_REGISTRY_USER ;
+          projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets PROD_READ_REGISTRY_PASSWORD | PROD_READ_REGISTRY_PASSWORD ;
+          projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets DECKHOUSE_DEV_REGISTRY_HOST | DECKHOUSE_DEV_REGISTRY_HOST ;
+          projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets DEV_REGISTRY_USER | DEV_REGISTRY_USER ;
+          projects/data/24cb1d7c-717a-4f92-8547-26f632916a7a/Trivy_CVE_Scan_CI_Secrets DEV_REGISTRY_PASSWORD | DEV_REGISTRY_PASSWORD ;
 
     - name: Start ssh-agent
       uses: webfactory/ssh-agent@v0.9.0
@@ -104,27 +101,30 @@ runs:
     - name: Clone repository
       shell: bash
       run: |
-        rm -rf /tmp/cve-scripts
-        git clone --depth 1 --branch v2.0 "${{ steps.secrets.outputs.CVE_TEST_REPO_GIT }}" /tmp/cve-scripts
-        cp -r /tmp/cve-scripts/*.sh /tmp/cve-scripts/*.py /tmp/cve-scripts/lib ./
-        chmod +x *.sh *.py
+        cve_scripts_dir=$(mktemp -d -t cve-scripts.XXXXXXXX)
+        git clone --depth 1 --branch main "${{ steps.secrets.outputs.CVE_TEST_REPO_GIT }}" "${cve_scripts_dir}"
+        chmod +x "$cve_scripts_dir"/*.sh "$cve_scripts_dir"/*.py
+        echo "cve_scripts_dir=${cve_scripts_dir}" >> "$GITHUB_ENV"
+        echo "Scripts cloned into ${cve_scripts_dir}"
 
     - name: Run Trivy CVE Scan
       shell: bash
       env:
         CS_TRIVY_BIN_VERSION: "v0.67.2"
         CS_TRIVY_REPO_ID: "2181"
-        CS_TRIVY_PROD_REGISTRY: "${{ inputs.prod_registry }}"
-        CS_TRIVY_DB_URL: "${{ inputs.prod_registry }}/deckhouse/ee/security/trivy-db:2"
-        CS_TRIVY_JAVA_DB_URL: "${{ inputs.prod_registry }}/deckhouse/ee/security/trivy-java-db:1"
-        CS_TRIVY_POLICY_URL: "${{ inputs.prod_registry }}/deckhouse/ee/security/trivy-bdu:1"
+        CS_TRIVY_PROD_REGISTRY: "${{ steps.secrets.outputs.TRIVY_PROD_REGISTRY }}"
+        CS_TRIVY_PROD_REGISTRY_USER: "${{ steps.secrets.outputs.TRIVY_PROD_REGISTRY_USER }}"
+        CS_TRIVY_PROD_REGISTRY_PASSWORD: "${{ steps.secrets.outputs.TRIVY_PROD_REGISTRY_PASSWORD }}"
+        CS_TRIVY_DB_URL: "${{ steps.secrets.outputs.TRIVY_PROD_REGISTRY }}/deckhouse/ee/security/trivy-db:2"
+        CS_TRIVY_JAVA_DB_URL: "${{ steps.secrets.outputs.TRIVY_PROD_REGISTRY }}/deckhouse/ee/security/trivy-java-db:1"
+        CS_TRIVY_POLICY_URL: "${{ steps.secrets.outputs.TRIVY_PROD_REGISTRY }}/deckhouse/ee/security/trivy-bdu:1"
         CS_TRIVY_REPORTS_LOG_OUTPUT: "${{ inputs.trivy_reports_log_output }}"
-        CS_PROD_REGISTRY: "${{ inputs.prod_registry }}"
-        CS_PROD_REGISTRY_USER: "${{ inputs.prod_registry_user }}"
-        CS_PROD_REGISTRY_PASSWORD: "${{ inputs.prod_registry_password }}"
-        CS_DEV_REGISTRY: "${{ inputs.dev_registry }}"
-        CS_DEV_REGISTRY_USER: "${{ inputs.dev_registry_user }}"
-        CS_DEV_REGISTRY_PASSWORD: "${{ inputs.dev_registry_password }}"
+        CS_PROD_REGISTRY: "${{ steps.secrets.outputs.PROD_READ_REGISTRY }}"
+        CS_PROD_REGISTRY_USER: "${{ steps.secrets.outputs.PROD_READ_REGISTRY_USER }}"
+        CS_PROD_REGISTRY_PASSWORD: "${{ steps.secrets.outputs.PROD_READ_REGISTRY_PASSWORD }}"
+        CS_DEV_REGISTRY: "${{ steps.secrets.outputs.DECKHOUSE_DEV_REGISTRY_HOST }}"
+        CS_DEV_REGISTRY_USER: "${{ steps.secrets.outputs.DEV_REGISTRY_USER }}"
+        CS_DEV_REGISTRY_PASSWORD: "${{ steps.secrets.outputs.DEV_REGISTRY_PASSWORD }}"
         CS_SOURCE_TAG: "${{ inputs.source_tag }}"
         CS_CASE: "${{ inputs.case }}"
         CS_EXTERNAL_MODULE_NAME: "${{ inputs.external_module_name }}"
@@ -141,6 +141,12 @@ runs:
         CS_DECKHOUSE_PRIVATE_REPO: "${{ steps.secrets.outputs.DECKHOUSE_PRIVATE_REPO }}"
         CS_CONFIGMAP_PROJECT_ID: "4352"
         CS_WORKDIR: "${{ github.workspace }}/${{ inputs.workdir }}"
+        CS_ONLY_IMAGES: "${{ inputs.only_images }}"
+        CS_ONLY_IMAGES_ENABLED: "${{ inputs.only_images_enabled }}"
+        CS_TARGET_TAG: "${{ inputs.target_tag }}"
       run: |
-        ./cve_scan.sh
+        scan_rc=0
+        "$cve_scripts_dir"/cve_scan.sh || scan_rc=$?
+        rm -rf "$cve_scripts_dir"
+        exit "$scan_rc"
 
