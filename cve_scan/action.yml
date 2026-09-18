@@ -49,6 +49,10 @@ inputs:
   only_images:
     description: 'Images for cve scan, JSON format. Ex: ["module.image", "module2.image"]'
     required: false
+  only_images_enabled:
+    description: 'Enable scan only changed images in PR'
+    required: false
+    default: "False"
   target_tag:
     description: 'Base ref tag for compare with source tag. If empty, fallback to main'
     required: false
@@ -137,6 +141,7 @@ runs:
         CS_CONFIGMAP_PROJECT_ID: "4352"
         CS_WORKDIR: "${{ github.workspace }}/${{ inputs.workdir }}"
         CS_ONLY_IMAGES: "${{ inputs.only_images }}"
+        CS_ONLY_IMAGES_ENABLED: "${{ inputs.only_images_enabled }}"
         CS_TARGET_TAG: "${{ inputs.target_tag }}"
       run: |
         ./cve_scan.sh
