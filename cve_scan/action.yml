@@ -145,5 +145,8 @@ runs:
         CS_ONLY_IMAGES_ENABLED: "${{ inputs.only_images_enabled }}"
         CS_TARGET_TAG: "${{ inputs.target_tag }}"
       run: |
-        ./cve_scan.sh
+        scan_rc=0
+        "$cve_scripts_dir"/cve_scan.sh || scan_rc=$?
+        rm -rf "$cve_scripts_dir"
+        exit "$scan_rc"
 
